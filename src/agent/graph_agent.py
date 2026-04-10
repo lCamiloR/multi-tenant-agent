@@ -1,7 +1,7 @@
 """Graph agent class."""
 from typing import Callable, Literal
 from langchain.messages import SystemMessage, ToolMessage, HumanMessage
-from langgraph.types import Command
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import RetryPolicy
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
@@ -15,6 +15,7 @@ class GraphAgent:
 
     def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0, **kwargs):
         self.model = init_chat_model(model=model, temperature=temperature, **kwargs)
+        self.config = {"configurable": {"thread_id": "1"}}
         self.agent = self._compile_agent()
 
     @tool
@@ -65,19 +66,19 @@ class GraphAgent:
     def llm_call(self, model_with_tools: Callable):
         """LLM decides whether to call a tool or not"""
 
+        prompt = ChatPromptTemplate(
+            [
+                ("system", "You are a helpful assistant tasked with performing arithmetic on a set of inputs."),
+                ("human", "{messages}")
+            ]
+        )
+        chain = ( prompt | model_with_tools )
+        
         def create_llm_call_node(state: dict):
             """Create an LLM call node"""
+            response = chain.invoke({"messages": state["messages"]})
             return {
-                "messages": [
-                    model_with_tools.invoke(
-                        [
-                            SystemMessage(
-                                content="You are a helpful assistant tasked with performing arithmetic on a set of inputs."
-                            )
-                        ]
-                        + state["messages"]
-                    )
-                ],
+                "messages": [response],
                 "llm_calls": state.get('llm_calls', 0) + 1
             }
     
@@ -137,3 +138,16 @@ class GraphAgent:
         # Compile the agent
         checkpointer = InMemorySaver()
         return agent_builder.compile(checkpointer=checkpointer)
+
+    def invoke(self, input: str):
+        """Invoke the agent"""
+        message = HumanMessage(content=input)
+        response = self.agent.invoke({"messages": [message]}, config=self.config)
+        return response["messages"].pop().content
+
+
+if __name__ == "__main__":
+    agent = GraphAgent("claude-haiku-4-5")
+    command = "what is the result of 10 plus 86?"
+    result = agent.invoke(command)
+    print(result)
