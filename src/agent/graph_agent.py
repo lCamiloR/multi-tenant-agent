@@ -1,10 +1,10 @@
 """Graph agent class."""
 from typing import Callable, Literal
-from langchain.messages import SystemMessage, ToolMessage, HumanMessage
+from langchain.messages import ToolMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import RetryPolicy
 from langchain.tools import tool
-from langchain.chat_models import init_chat_model
+from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.graph import StateGraph, START, END
 
 from src.agent.models import MessagesState
@@ -14,7 +14,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 class GraphAgent:
 
     def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0, **kwargs):
-        self.model = init_chat_model(model=model, temperature=temperature, **kwargs)
+        self.model: BaseChatModel = init_chat_model(model=model, temperature=temperature, **kwargs)
         self.config = {"configurable": {"thread_id": "1"}}
         self.agent = self._compile_agent()
 
@@ -139,7 +139,7 @@ class GraphAgent:
         checkpointer = InMemorySaver()
         return agent_builder.compile(checkpointer=checkpointer)
 
-    def invoke(self, input: str):
+    def invoke(self, input: str, **kargs):
         """Invoke the agent"""
         message = HumanMessage(content=input)
         response = self.agent.invoke({"messages": [message]}, config=self.config)

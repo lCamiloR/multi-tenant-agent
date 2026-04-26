@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
-from src.core.config import settings
+from src.core.config import SETTINGS
 from src.auth.models import TokenPayload
 
 
@@ -10,9 +10,9 @@ def _get_active_keys() -> list[str]:
     The primary key always comes first — if rotation isn't active,
     this just returns a single-item list and behavior is unchanged.
     """
-    keys = [settings.jwt_secret_key]
-    if settings.jwt_secret_key_previous:
-        keys.append(settings.jwt_secret_key_previous)
+    keys = [SETTINGS.primary_jwt_secret_key]
+    if SETTINGS.previous_jwt_secret_key:
+        keys.append(SETTINGS.previous_jwt_secret_key)
     return keys
 
 
@@ -22,7 +22,7 @@ def create_access_token(subject: str, tenant_id: str, role: str = "user") -> tup
     This ensures all new tokens are bound to the latest key.
     """
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(minutes=settings.access_token_expire_minutes)
+    expires_at = now + timedelta(minutes=SETTINGS.access_token_expire_minutes)
 
     payload = {
         "sub": subject,
@@ -32,7 +32,7 @@ def create_access_token(subject: str, tenant_id: str, role: str = "user") -> tup
         "exp": expires_at,
     }
 
-    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(payload, SETTINGS.primary_jwt_secret_key, algorithm=SETTINGS.jwt_algorithm)
     return token, expires_at
 
 
@@ -46,7 +46,7 @@ def decode_token(token: str) -> TokenPayload:
 
     for key in _get_active_keys():
         try:
-            raw = jwt.decode(token, key, algorithms=[settings.jwt_algorithm])
+            raw = jwt.decode(token, key, algorithms=[SETTINGS.jwt_algorithm])
             return TokenPayload(**raw)
         except JWTError as e:
             # This key didn't work — try the next one

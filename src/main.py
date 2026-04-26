@@ -1,19 +1,11 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from src.agent.graph_agent import GraphAgent
-import os
+from src.api.router import router
+from src.core.config import SETTINGS  # Validates all env vars at startup
 from dotenv import load_dotenv
 
 load_dotenv()
-agent = GraphAgent("claude-haiku-4-5", api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-app = FastAPI()
+app = FastAPI(title="Multi-Tenant Agent API")
 
-
-class UserInput(BaseModel):
-    prompt: str
-
-
-@app.post("/")
-def invoke(input: UserInput):
-    return agent.invoke(input.prompt)
+# Register all routes through the central router
+app.include_router(router)
