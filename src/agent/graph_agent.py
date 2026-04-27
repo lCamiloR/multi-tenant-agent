@@ -1,7 +1,7 @@
 """Graph agent class."""
 from typing import Callable, Literal
 from langchain.messages import ToolMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.types import RetryPolicy
 from langchain.tools import tool
 from langchain.chat_models import BaseChatModel, init_chat_model
@@ -66,12 +66,11 @@ class GraphAgent:
     def llm_call(self, model_with_tools: Callable):
         """LLM decides whether to call a tool or not"""
 
-        prompt = ChatPromptTemplate(
-            [
-                ("system", "You are a helpful assistant tasked with performing arithmetic on a set of inputs."),
-                ("human", "{messages}")
-            ]
-        )
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",  "You are a helpful assistant. You have access to arithmetic tools (add, subtract, multiply, divide) "
+                        "and should use them when the user asks for calculations. For general questions, answer directly."),
+            MessagesPlaceholder(variable_name="messages"),
+        ])
         chain = ( prompt | model_with_tools )
         
         def create_llm_call_node(state: dict):
@@ -148,6 +147,14 @@ class GraphAgent:
 
 if __name__ == "__main__":
     agent = GraphAgent("claude-haiku-4-5")
-    command = "what is the result of 10 plus 86?"
+    command = "Ayrton Senna?"
+    result = agent.invoke(command)
+    print(result)
+
+    command = "SR-71 max speed?"
+    result = agent.invoke(command)
+    print(result)
+
+    command = "What was my first question?"
     result = agent.invoke(command)
     print(result)
