@@ -1,21 +1,31 @@
 """Graph agent class."""
-from typing import Callable, Literal
+from typing import Any, Callable, Literal, Optional
 from langchain.messages import ToolMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.types import RetryPolicy
 from langchain.tools import tool
 from langchain.chat_models import BaseChatModel, init_chat_model
 from langgraph.graph import StateGraph, START, END
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
 
 from src.agent.models import MessagesState
 from langgraph.checkpoint.memory import InMemorySaver
 
+langfuse = get_client()
+ 
+# Verify connection
+if langfuse.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
 
 class GraphAgent:
 
     def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0, **kwargs):
         self.model: BaseChatModel = init_chat_model(model=model, temperature=temperature, **kwargs)
         self.config = {"configurable": {"thread_id": "1"}}
+        self.langfuse_handler = CallbackHandler()
         self.agent = self._compile_agent()
 
     @tool
@@ -75,7 +85,10 @@ class GraphAgent:
         
         def create_llm_call_node(state: dict):
             """Create an LLM call node"""
-            response = chain.invoke({"messages": state["messages"]})
+            response = chain.invoke(
+                {"messages": state["messages"]},
+                config={"callbacks": [self.langfuse_handler]}
+            )
             return {
                 "messages": [response],
                 "llm_calls": state.get('llm_calls', 0) + 1
@@ -138,10 +151,35 @@ class GraphAgent:
         checkpointer = InMemorySaver()
         return agent_builder.compile(checkpointer=checkpointer)
 
-    def invoke(self, input: str, **kargs):
-        """Invoke the agent"""
+    def invoke(
+        self,
+        input: str,
+        user_id: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ):
+        """Invoke the agent with Langfuse tracing attributes."""
         message = HumanMessage(content=input)
-        response = self.agent.invoke({"messages": [message]}, config=self.config)
+        # Build optional tags without leaking sensitive data.
+        tags = [f"tenant:{tenant_id}"] if tenant_id else []
+
+        self.langfuse_handler.trace_name = "agent-invoke"
+        self.langfuse_handler.session_id = session_id or tenant_id
+        self.langfuse_handler.user_id = user_id
+        self.langfuse_handler.tags = tags or None
+        self.langfuse_handler.metadata = {"tenant_id": tenant_id} if tenant_id else None
+
+        run_config: dict[str, Any] = {**self.config, "callbacks": [self.langfuse_handler]}
+        initial_state: MessagesState = {"messages": [message], "llm_calls": 0}
+        response = self.agent.invoke(  # type: ignore[arg-type]
+            initial_state,
+            config=run_config,  # type: ignore[arg-type]
+        )
+
+        # Garante que os dados sejam enviados ao Langfuse antes de retornar,
+        # importante especialmente em ambientes de execução curta (scripts, testes)
+        langfuse.flush()
+
         return response["messages"].pop().content
 
 

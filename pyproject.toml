@@ -14,6 +14,8 @@ dependencies = [
     "langchain>=1.2.15",
     "langchain-anthropic>=1.4.0",
     "langchain-openai>=1.1.12",
+    "langfuse>=4.5.1",
+    "langgraph>=1.1.6",
     "python-jose[cryptography]>=3.5.0",
 ]
 

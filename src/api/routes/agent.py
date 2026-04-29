@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from src.auth.dependencies import get_current_user, get_tenant_id
 from src.auth.models import TokenPayload
 from src.agent.graph_agent import GraphAgent
 from src.core.config import SETTINGS
 from pydantic import BaseModel
-import os
 
 router = APIRouter(tags=["agent"])
 agent = GraphAgent("claude-haiku-4-5", api_key=SETTINGS.anthropic_api_key)
@@ -19,6 +18,7 @@ def invoke(
     # If the token is missing or invalid, the request never reaches here.
     user: TokenPayload = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
+    x_session_id: str | None = Header(default=None),
 ):
     """
     By the time this function runs, we already know:
@@ -26,4 +26,9 @@ def invoke(
     - Which tenant they belong to (tenant_id)
     - What role they have (user.role)
     """
-    return agent.invoke(input.prompt, tenant_id=tenant_id)
+    return agent.invoke(
+        input.prompt,
+        user_id=user.sub,
+        tenant_id=tenant_id,
+        session_id=x_session_id,
+    )
