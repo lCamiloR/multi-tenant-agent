@@ -1,0 +1,141 @@
+# Docker Compose da stack completa de infraestrutura.
+#
+# Serviços incluídos:
+#   - postgres:       banco relacional (dados estruturados das licitações)
+#   - milvus:         vector store (embeddings para busca semântica)
+#   - etcd + minio:   dependências internas do Milvus standalone
+#   - temporal:       servidor de orquestração de workflows
+#   - temporal-ui:    interface web para monitorar execuções
+#
+# Para subir tudo:
+#   docker compose up -d
+#
+# Para verificar saúde dos serviços:
+#   docker compose ps
+#
+# Para ver logs do worker Python (roda fora do Docker em dev):
+#   python -m src.pipeline.workers.sync_worker
+
+services:
+
+  # ── Postgres ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: multi_tenant_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Milvus dependencies ─────────────────────────────────────────────────────
+  # O Milvus standalone depende de dois serviços:
+  #   etcd:  armazena metadata e configuração do cluster Milvus
+  #   minio: armazena os segmentos de dados dos vetores (object storage)
+  # Em produção, esses serviços teriam configurações de persistência mais robustas.
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.14
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: >
+      etcd
+      --advertise-client-urls=http://etcd:2379
+      --listen-client-urls=http://0.0.0.0:2379
+      --data-dir=/etcd
+    volumes:
+      - etcd_data:/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: server /minio_data --console-address ":9001"
+    volumes:
+      - minio_data:/minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ── Milvus standalone ───────────────────────────────────────────────────────
+  milvus:
+    image: milvusdb/milvus:v2.4.17
+    restart: unless-stopped
+    command: milvus run standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - "19530:19530"   # porta gRPC — usada pelo SDK Python
+      - "9091:9091"     # porta HTTP para health checks
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ── Temporal ────────────────────────────────────────────────────────────────
+  # A imagem auto-setup inicializa o schema do banco automaticamente
+  # na primeira execução — não é necessário rodar migrations manualmente.
+  temporal:
+    image: temporalio/auto-setup:1.25
+    restart: unless-stopped
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: secret
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Temporal UI ─────────────────────────────────────────────────────────────
+  # Interface web para inspecionar Workflows, Schedules e histórico de execuções.
+  # Acesse em: http://localhost:8080
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    restart: unless-stopped
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: "http://localhost:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - temporal
+
+volumes:
+  postgres_data:
+  etcd_data:
+  minio_data:
+  milvus_data:

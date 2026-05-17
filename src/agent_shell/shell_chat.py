@@ -1,3 +1,4 @@
+import pprint
 from rich.console import Console
 from rich.live import Live
 
@@ -33,11 +34,13 @@ class ShellChat:
 
             log_panel(user_input, title="You", style="user", console=console)
 
-            final_results = None
-
+            response = None
+            
             with Live(refresh_per_second=6, console=console) as live:
                 for event in self.agent.invoke(user_input):
-                    _, state_update = next(iter(event.items()))
+                    node_name, state_update = next(iter(event.items()))
+                    live.console.print(f"\f[bold magenta]=== Event: {node_name} ===[/bold magenta]")
+                    live.console.print(pprint.pformat(event))
 
                     if "steps" in state_update:
                         renderer.set_steps(state_update["steps"])
@@ -45,23 +48,19 @@ class ShellChat:
                     if "current_step" in state_update:
                         renderer.set_current_step(state_update["current_step"])
 
-                    if "results" in state_update:
-                        final_results = state_update["results"]
+                    if state_update.get("messages"):
+                        response = state_update["messages"].pop()
+                    else:
+                        response = None
 
                     live.update(renderer.render())
 
-            if final_results:
+            if response:
                 log_panel(
-                    final_results.results_consolidation,
+                    response.content,
                     title="AI",
                     style="ai",
                     console=console
                 )
 
-                if final_results.next_steps:
-                    log_panel(
-                        final_results.next_steps,
-                        title="Next steps",
-                        style="info",
-                        console=console
-                    )
+                

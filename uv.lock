@@ -939,7 +939,7 @@ requires-dist = [
     { name = "langfuse", specifier = ">=4.5.1" },
     { name = "langgraph", specifier = ">=1.1.6" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
-    { name = "rich", specifier = "==15.0.0" },
+    { name = "rich", specifier = "<=15.0.0" },
 ]
 
 [[package]]
