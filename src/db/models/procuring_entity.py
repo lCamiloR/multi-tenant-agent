@@ -11,10 +11,11 @@ class ProcuringEntity(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ibge_code: Mapped[int] = mapped_column(nullable=False)
     state_name: Mapped[str] = mapped_column(String(30), nullable=False)
-    state_acronym = mapped_column(String(30), nullable=False)
+    state_acronym: Mapped[str] = mapped_column(String(2), nullable=False)
     unit_code: Mapped[int] = mapped_column(nullable=False)
     unit_name: Mapped[str] = mapped_column(String(30), nullable=False)
     municipality_name: Mapped[str] = mapped_column(String(30), nullable=False)
+    cnpj: Mapped[str] = mapped_column(String(14), nullable=False, unique=True)
 
     def __repr__(self) -> str:
         return f"Procurement(id={self.id!r}, ibge_code={self.ibge_code!r}, unit_name={self.unit_name!r})"

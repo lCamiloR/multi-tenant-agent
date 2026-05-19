@@ -52,3 +52,5 @@ multi-tenant-agent/
         ├── __init__.py
         └── config.py           # Settings via pydantic-settings
 ```
+
+Run 'docker compose up -d' to load local containers.
