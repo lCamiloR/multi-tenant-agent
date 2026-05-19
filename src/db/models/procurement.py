@@ -15,7 +15,9 @@ class Procurement(Base):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     procuring_entity_id: Mapped[int] = mapped_column(ForeignKey("procuring_entity.id"))
-    pncp_control_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    pncp_control_number: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, index=True
+    )
     procurement_object: Mapped[str] = mapped_column(Text, nullable=False)
     additional_information: Mapped[str] = mapped_column(Text, nullable=False)
     estimated_price: Mapped[Optional[Decimal]] = mapped_column(
