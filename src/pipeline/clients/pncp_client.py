@@ -12,7 +12,7 @@ dentro do contexto do Temporal que roda em event loop assíncrono.
 import httpx
 from datetime import datetime, timedelta
 from logging import getLogger
-from src.pipeline.models.pncp import PaginaContratacoes, ContratacaoDTO
+from src.pipeline.models.pncp import PaginaContratacoes
 
 logger = getLogger(__name__)
 

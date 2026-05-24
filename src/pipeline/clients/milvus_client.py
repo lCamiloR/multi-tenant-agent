@@ -15,7 +15,7 @@ um arquivo .db (Milvus Lite) ou para o servidor standalone em Docker.
 import json
 from logging import getLogger
 from datetime import datetime
-from pymilvus import MilvusClient, DataType, CollectionSchema, FieldSchema
+from pymilvus import MilvusClient, DataType
 
 logger = getLogger(__name__)
 

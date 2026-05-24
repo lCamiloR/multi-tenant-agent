@@ -16,7 +16,7 @@ todas as páginas em uma só Activity) é estratégica:
   não para o fetch completo (minutos).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from temporalio import activity
 from src.pipeline.clients.pncp_client import PNCPClient
 from src.pipeline.models.state import FetchParams, PageResult
