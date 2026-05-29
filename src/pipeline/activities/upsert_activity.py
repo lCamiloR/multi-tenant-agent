@@ -15,7 +15,6 @@ um item mais de uma vez do que perdê-lo. Com idempotência nos dois stores,
 reprocessamentos são seguros.
 """
 
-import json
 import logging
 from temporalio import activity
 
@@ -23,6 +22,10 @@ from src.pipeline.clients.milvus_client import MilvusLicitacoesClient
 from src.pipeline.clients.embedding_client import EmbeddingClient
 from src.pipeline.models.pncp import ContratacaoDTO
 from src.pipeline.models.state import UpsertParams
+from src.pipeline.mappers.pncp_mapper import to_procurement, to_procuring_entity
+from src.db.repositories.procuring_entity_repo import ProcuringEntityRepository
+from src.db.repositories.procurement_repo import ProcurementRepository
+from src.db.session import get_session_ctx
 from src.core.config import SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -76,6 +79,14 @@ async def upsert_licitacao(params: UpsertParams) -> None:
     #   INSERT INTO licitacoes (...) VALUES (...)
     #   ON CONFLICT (numero_controle_pncp) DO UPDATE SET ...
     logger.info(f"[Postgres] Upsert | id={item.numero_controle_pncp}")
+    async with get_session_ctx() as session:
+        procuring_entity_repo = ProcuringEntityRepository(session)
+        procuring_entity_obj = to_procuring_entity(item)
+        await procuring_entity_repo.upsert(procuring_entity_obj)
+
+        procuring_repo = ProcurementRepository(session)
+        procuriment_obj = to_procurement(item, procuring_entity_id=procuring_entity_obj.id)
+        await procuring_repo.upsert(procuriment_obj)
 
     # --- Milvus ---
     milvus = MilvusLicitacoesClient(uri=SETTINGS.milvus_uri)
