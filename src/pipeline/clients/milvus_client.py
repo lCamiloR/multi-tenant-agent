@@ -177,7 +177,7 @@ class MilvusLicitacoesClient:
         results = self.client.search(
             collection_name=COLLECTION_NAME,
             data=[query_vector],
-            filter=filtro_str or None,
+            filter=filtro_str,
             limit=limit,
             output_fields=["id", "uf_sigla", "modalidade_id", "data_encerramento_proposta"],
         )

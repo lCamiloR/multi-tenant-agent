@@ -53,10 +53,10 @@ class PNCPClient:
         apenas registros que foram modificados no período, o que é muito mais
         eficiente do que buscar tudo e comparar localmente.
 
-        O formato de data exigido pela API é "YYYYMMDDHHmmss" — por isso
+        O formato de data exigido pela API é "YYYYMMDD" — por isso
         fazemos a conversão aqui, mantendo o resto do código trabalhando com datetime.
         """
-        fmt = "%Y%m%d%H%M%S"
+        fmt = "%Y%m%d"
 
         params = {
             "dataInicial": data_inicial.strftime(fmt),

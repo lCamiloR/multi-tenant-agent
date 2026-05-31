@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 0c75146a49e3
+Revision ID: 0b068b91f54b
 Revises: 
-Create Date: 2026-05-30 18:00:28.498364
+Create Date: 2026-05-31 10:11:52.882302
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '0c75146a49e3'
+revision: str = '0b068b91f54b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,11 +24,11 @@ def upgrade() -> None:
     op.create_table('procuring_entity',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('ibge_code', sa.Integer(), nullable=False),
-    sa.Column('state_name', sa.String(length=30), nullable=False),
+    sa.Column('state_name', sa.String(length=256), nullable=False),
     sa.Column('state_acronym', sa.String(length=2), nullable=False),
     sa.Column('unit_code', sa.Integer(), nullable=False),
-    sa.Column('unit_name', sa.String(length=30), nullable=False),
-    sa.Column('municipality_name', sa.String(length=30), nullable=False),
+    sa.Column('unit_name', sa.String(length=256), nullable=False),
+    sa.Column('municipality_name', sa.String(length=256), nullable=False),
     sa.Column('cnpj', sa.String(length=14), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_procuring_entity'))
     )

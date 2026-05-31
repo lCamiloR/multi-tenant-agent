@@ -50,7 +50,7 @@ class ContratacaoDTO(BaseModel):
     modo_disputa_nome: Optional[str] = Field(default=None, alias="modoDisputaNome")
     valor_total_estimado: Optional[float] = Field(default=None, alias="valorTotalEstimado")
     valor_total_homologado: Optional[float] = Field(default=None, alias="valorTotalHomologado")
-    situacao_compra_id: Optional[str] = Field(default=None, alias="situacaoCompraId")
+    situacao_compra_id: Optional[int] = Field(default=None, alias="situacaoCompraId")
     situacao_compra_nome: Optional[str] = Field(default=None, alias="situacaoCompraNome")
     data_publicacao_pncp: Optional[datetime] = Field(default=None, alias="dataPublicacaoPncp")
     data_abertura_proposta: Optional[datetime] = Field(default=None, alias="dataAberturaProposta")
