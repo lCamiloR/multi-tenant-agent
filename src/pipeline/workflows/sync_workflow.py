@@ -19,6 +19,7 @@ pagina pela API do PNCP buscando registros atualizados nas últimas N horas.
 Para cada item encontrado, gera embedding e persiste no Postgres + Milvus.
 """
 
+import asyncio
 from datetime import timedelta, datetime, timezone
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -27,8 +28,8 @@ from temporalio.common import RetryPolicy
 # que o código das Activities seja executado durante o replay do Workflow.
 with workflow.unsafe.imports_passed_through():
     from src.pipeline.activities.fetch_activity import fetch_contratacoes_page
-    from src.pipeline.activities.upsert_activity import generate_embedding, upsert_licitacao
-    from src.pipeline.models.state import FetchParams, SyncParams, UpsertParams
+    from src.pipeline.activities.upsert_activity import generate_embedding, upsert_licitacoes_batch
+    from src.pipeline.models.state import FetchParams, SyncParams, BatchUpsertParams
 
 
 # Política de retry padrão para Activities de I/O externo (API PNCP, OpenAI).
@@ -115,36 +116,41 @@ class SyncLicitacoesWorkflow:
                         f"Modalidade {modalidade} | total de páginas: {total_paginas}"
                     )
 
-                # Processa cada item da página atual
-                for item_json in fetch_result.items:
-                    try:
-                        # Passo 1: gera o embedding (chama a OpenAI)
-                        embedding = await workflow.execute_activity(
+                
+                try:
+                    # Passo 1: gera o embedding (chama a OpenAI)
+                    embedding_tasks = [
+                        workflow.execute_activity(
                             generate_embedding,
                             item_json,
                             start_to_close_timeout=timedelta(seconds=30),
                             retry_policy=IO_RETRY_POLICY,
                         )
+                        for item_json in fetch_result.items
+                    ]
+                    embeddings: list[list[float]] = await asyncio.gather(*embedding_tasks)
 
-                        # Passo 2: persiste no Postgres e no Milvus
-                        await workflow.execute_activity(
-                            upsert_licitacao,
-                            UpsertParams(item_json=item_json, embedding=embedding),
-                            start_to_close_timeout=timedelta(seconds=30),
-                            retry_policy=PERSIST_RETRY_POLICY,
-                        )
+                    # Passo 2: persiste no Postgres e no Milvus
+                    await workflow.execute_activity(
+                        upsert_licitacoes_batch,
+                        BatchUpsertParams(items_json=fetch_result.items, embeddings=embeddings),
+                        start_to_close_timeout=timedelta(seconds=120),
+                        retry_policy=PERSIST_RETRY_POLICY,
+                    )
 
-                        total_processados += 1
+                    total_processados += 1  
 
-                    except Exception as e:
-                        # Logamos o erro mas não abortamos o workflow inteiro —
-                        # um item com falha não deve impedir o processamento dos demais.
-                        workflow.logger.error(f"Erro ao processar item: {e}")
-                        total_erros += 1
+                except Exception as e:
+                    # Logamos o erro mas não abortamos o workflow inteiro —
+                    # um item com falha não deve impedir o processamento dos demais.
+                    workflow.logger.error(f"Erro ao processar item: {e}")
+                    total_erros += 1
 
                 # Avança para a próxima página ou encerra o loop da modalidade
                 if pagina >= (total_paginas or 1):
                     break
+
+                await asyncio.sleep(0.5)
                 pagina += 1
 
         resultado = {

@@ -55,7 +55,6 @@ class ProcuringEntityRepository:
         )
 
         result = await self.session.execute(stmt)
-        await self.session.commit()
         return result.scalar_one()
 
     async def get_by_cnpj(self, cnpj: str) -> ProcuringEntity | None:

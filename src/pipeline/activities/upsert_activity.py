@@ -21,7 +21,7 @@ from temporalio import activity
 from src.pipeline.clients.milvus_client import MilvusLicitacoesClient
 from src.pipeline.clients.embedding_client import EmbeddingClient
 from src.pipeline.models.pncp import ContratacaoDTO
-from src.pipeline.models.state import UpsertParams
+from src.pipeline.models.state import BatchUpsertParams
 from src.pipeline.mappers.pncp_mapper import to_procurement, to_procuring_entity
 from src.db.repositories.procuring_entity_repo import ProcuringEntityRepository
 from src.db.repositories.procurement_repo import ProcurementRepository
@@ -53,8 +53,8 @@ async def generate_embedding(item_json: str) -> list[float]:
     return await embedder.embed(texto)
 
 
-@activity.defn(name="upsert_licitacao")
-async def upsert_licitacao(params: UpsertParams) -> None:
+@activity.defn(name="upsert_licitacoes_batch")
+async def upsert_licitacoes_batch(params: BatchUpsertParams) -> None:
     """
     Persiste a contratação no Postgres e no Milvus de forma idempotente.
 
@@ -65,33 +65,30 @@ async def upsert_licitacao(params: UpsertParams) -> None:
     O caminho inverso (Milvus com ID que não existe no Postgres) criaria
     resultados de busca que não podem ser hidratados — pior situação.
     """
-    item = ContratacaoDTO.model_validate_json(params.item_json)
+    items = [ContratacaoDTO.model_validate_json(j) for j in params.items_json]
 
-    # --- Postgres ---
-    # Aqui ficaria a chamada ao repositório SQLAlchemy.
-    # Deixamos como placeholder para você implementar junto com os models
-    # do SQLAlchemy — faz parte do aprendizado do roadmap.
-    #
-    # Exemplo do que a chamada ficaria:
-    #   await licitacao_repo.upsert(item)
-    #
-    # O upsert SQL seria algo como:
-    #   INSERT INTO licitacoes (...) VALUES (...)
-    #   ON CONFLICT (numero_controle_pncp) DO UPDATE SET ...
-    logger.info(f"[Postgres] Upsert | id={item.numero_controle_pncp}")
+    # --- Postgres: single transaction for the whole page ---
     async with get_session_ctx() as session:
         procuring_entity_repo = ProcuringEntityRepository(session)
-        procuring_entity_obj = to_procuring_entity(item)
-        await procuring_entity_repo.upsert(procuring_entity_obj)
+        procurement_repo = ProcurementRepository(session)
 
-        procuring_repo = ProcurementRepository(session)
-        procuriment_obj = to_procurement(item, procuring_entity_id=procuring_entity_obj.id)
-        await procuring_repo.upsert(procuriment_obj)
+        for item in items:
+            logger.info(f"[Postgres] Upsert | id={item.numero_controle_pncp}")
+            entity = to_procuring_entity(item)
+            saved_entity = await procuring_entity_repo.upsert(entity)
+            
+            procurement = to_procurement(item, saved_entity.id)
+            await procurement_repo.upsert(procurement)
+        
+        # Single commit for all items in the page
+        await session.commit()
 
-    # --- Milvus ---
+    # --- Milvus: batch insert ---
     milvus = MilvusLicitacoesClient(uri=SETTINGS.milvus_uri)
     try:
-        milvus.upsert(item_json=params.item_json, embedding=params.embedding)
-        logger.info(f"[Milvus] Upsert | id={item.numero_controle_pncp}")
+        milvus.upsert_batch(
+            items_json=params.items_json,
+            embeddings=params.embeddings
+        )
     finally:
         milvus.close()

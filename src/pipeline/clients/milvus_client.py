@@ -99,14 +99,7 @@ class MilvusLicitacoesClient:
         )
         logger.info(f"Coleção '{COLLECTION_NAME}' criada com sucesso.")
 
-    def upsert(self, item_json: str, embedding: list[float]) -> None:
-        """
-        Insere ou atualiza um registro na coleção.
-
-        O upsert é idempotente pelo 'id' (numeroControlePNCP) —
-        se o item já existir, os vetores e metadata são atualizados.
-        Isso garante que reprocessamentos do job não causem duplicatas.
-        """
+    def _build_record(self, item_json: str, embedding: list[float]) -> dict:
         item = json.loads(item_json)
 
         # Converte datetimes para timestamps Unix inteiros porque
@@ -128,7 +121,7 @@ class MilvusLicitacoesClient:
             except (ValueError, TypeError):
                 pass
 
-        record = {
+        return {
             "id": item["numero_controle_pncp"],
             "vector": embedding,
             "uf_sigla": item.get("unidade_orgao", {}).get("uf_sigla", "") or "",
@@ -138,7 +131,26 @@ class MilvusLicitacoesClient:
             "data_publicacao": publicacao_ts,
         }
 
+    def upsert(self, item_json: str, embedding: list[float]) -> None:
+        """
+        Insere ou atualiza um registro na coleção.
+
+        O upsert é idempotente pelo 'id' (numeroControlePNCP) —
+        se o item já existir, os vetores e metadata são atualizados.
+        Isso garante que reprocessamentos do job não causem duplicatas.
+        """
+        record = self._build_record(item_json, embedding)
         self.client.upsert(collection_name=COLLECTION_NAME, data=[record])
+
+    def upsert_batch(self, items_json: list[str], embeddings: list[list[float]]) -> None:
+        """
+        Insere ou atualiza múltiplos registros na coleção.
+        """
+        records = [
+            self._build_record(item_json, embedding) 
+            for item_json, embedding in zip(items_json, embeddings)
+        ]
+        self.client.upsert(collection_name=COLLECTION_NAME, data=records)
 
     def search(
         self,

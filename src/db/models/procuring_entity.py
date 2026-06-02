@@ -12,7 +12,7 @@ class ProcuringEntity(Base):
     ibge_code: Mapped[int] = mapped_column(nullable=False)
     state_name: Mapped[str] = mapped_column(String(256), nullable=False)
     state_acronym: Mapped[str] = mapped_column(String(2), nullable=False)
-    unit_code: Mapped[int] = mapped_column(nullable=False)
+    unit_code: Mapped[str] = mapped_column(String(20), nullable=False)
     unit_name: Mapped[str] = mapped_column(String(256), nullable=False)
     municipality_name: Mapped[str] = mapped_column(String(256), nullable=False)
     cnpj: Mapped[str] = mapped_column(String(14), nullable=False, unique=True, index=True)

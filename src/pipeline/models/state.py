@@ -65,11 +65,11 @@ class SyncParams:
 
 
 @dataclass
-class UpsertParams:
+class BatchUpsertParams:
     """
     Parâmetros para a Activity de persistência.
     Encapsula tanto os dados da contratação quanto o vetor gerado
     para que a Activity de upsert seja atômica — ou persiste tudo, ou nada.
     """
-    item_json: str            # ContratacaoDTO serializado como JSON
-    embedding: list[float]    # vetor gerado pelo embedder
+    items_json: list[str]
+    embeddings: list[list[float]]

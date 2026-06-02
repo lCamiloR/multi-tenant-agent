@@ -21,7 +21,7 @@ from temporalio.worker import Worker
 
 from src.pipeline.workflows.sync_workflow import SyncLicitacoesWorkflow
 from src.pipeline.activities.fetch_activity import fetch_contratacoes_page
-from src.pipeline.activities.upsert_activity import generate_embedding, upsert_licitacao
+from src.pipeline.activities.upsert_activity import generate_embedding, upsert_licitacoes_batch
 from src.core.config import SETTINGS
 
 logging.basicConfig(level=logging.INFO)
@@ -52,7 +52,7 @@ async def run_worker():
         activities=[
             fetch_contratacoes_page,
             generate_embedding,
-            upsert_licitacao,
+            upsert_licitacoes_batch,
         ],
     ):
         logger.info(f"Worker ativo na fila '{TASK_QUEUE}'. Aguardando tarefas...")

@@ -6,6 +6,7 @@
 #   - etcd + minio:   dependências internas do Milvus standalone
 #   - temporal:       servidor de orquestração de workflows
 #   - temporal-ui:    interface web para monitorar execuções
+#   - attu:           interface web para inspecionar e gerenciar o Milvus
 #
 # Para subir tudo:
 #   docker compose up -d
@@ -62,7 +63,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-  
+
   minio:
     image: minio/minio:latest
     restart: unless-stopped
@@ -77,7 +78,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-  
+
   # ── Milvus standalone ───────────────────────────────────────────────────────
   milvus:
     image: milvusdb/milvus:v2.4.17
@@ -101,6 +102,30 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+
+  # ── Attu — Milvus UI ────────────────────────────────────────────────────────
+  # Interface web para inspecionar coleções, executar buscas, visualizar
+  # schemas e gerenciar dados no Milvus.
+  # Acesse em: http://localhost:8001
+  #
+  # Na tela de login, use:
+  #   Milvus Address: milvus:19530
+  #
+  # A porta 8001 foi escolhida para evitar conflito com o temporal-ui (8080)
+  # e com aplicações comuns em desenvolvimento (3000, 8000).
+  attu:
+    image: zilliz/attu:v2.4
+    restart: unless-stopped
+    environment:
+      # Pre-configures the Milvus connection so you don't need to type it
+      # manually on every login. The host uses the Docker service name
+      # because Attu connects to Milvus from inside the Docker network.
+      MILVUS_URL: milvus:19530
+    ports:
+      - "8001:3000"
+    depends_on:
+      milvus:
+        condition: service_healthy
 
   # ── Temporal ────────────────────────────────────────────────────────────────
   # A imagem auto-setup inicializa o schema do banco automaticamente

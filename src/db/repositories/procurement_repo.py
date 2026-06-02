@@ -58,7 +58,6 @@ class ProcurementRepository:
         )
 
         result = await self.session.execute(stmt)
-        await self.session.commit()
         return result.scalar_one()
 
     async def get_by_pncp_control_number(self, pncp_control_number: str) -> Procurement | None:

@@ -29,7 +29,7 @@ def to_procuring_entity(dto: ContratacaoDTO) -> ProcuringEntity:
         ibge_code=int(unidade.codigo_ibge) if unidade and unidade.codigo_ibge else 0,
         state_name=unidade.uf_nome or "" if unidade else "",
         state_acronym=unidade.uf_sigla or "" if unidade else "",
-        unit_code=int(unidade.codigo_unidade) if unidade and unidade.codigo_unidade else 0,
+        unit_code=unidade.codigo_unidade or "" if unidade else "",
         unit_name=unidade.nome_unidade or "" if unidade else "",
         municipality_name=unidade.municipio_nome or "" if unidade else "",
     )
