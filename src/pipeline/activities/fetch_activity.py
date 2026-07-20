@@ -1,19 +1,19 @@
 """
-Activity responsável por buscar uma página de contratações da API do PNCP.
+Activity responsible for fetching a page of procurements from the PNCP API.
 
-No modelo do Temporal, uma Activity é a menor unidade de trabalho com
-retry próprio. A decisão de fazer uma Activity por página (e não buscar
-todas as páginas em uma só Activity) é estratégica:
+In Temporal's model, an Activity is the smallest unit of work with
+its own retry policy. The decision to create one Activity per page (rather than
+fetching all pages in a single Activity) is strategic:
 
-- Se a página 7 de 20 falhar, o Temporal reexecuta APENAS ela.
-  Com tudo em uma Activity, uma falha na página 7 jogaria fora o trabalho
-  das páginas 1–6 e começaria do zero.
+- If page 7 of 20 fails, Temporal retries ONLY that page.
+  With everything in one Activity, a failure on page 7 would discard the work
+  from pages 1–6 and start from scratch.
 
-- O histórico de execuções no Temporal UI fica granular — você vê
-  exatamente qual página falhou e por quê.
+- The execution history in the Temporal UI is granular — you can see
+  exactly which page failed and why.
 
-- O timeout por Activity pode ser calibrado para uma página (30s),
-  não para o fetch completo (minutos).
+- The timeout per Activity can be calibrated for a single page (30s),
+  not for the full fetch (minutes).
 """
 
 from datetime import datetime
@@ -26,49 +26,48 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@activity.defn(name="fetch_contratacoes_page")
-async def fetch_contratacoes_page(params: FetchParams) -> PageResult:
+@activity.defn(name="fetch_procurements_page")
+async def fetch_procurements_page(params: FetchParams) -> PageResult:
     """
-    Busca uma única página de contratações atualizadas no PNCP.
+    Fetches a single page of updated procurements from PNCP.
 
-    O decorator @activity.defn registra esta função como uma Activity
-    reconhecível pelo worker do Temporal. O parâmetro 'name' é o
-    identificador que o Workflow usa para despachar a tarefa — se você
-    renomear a função Python, o Workflow continua funcionando desde que
-    o 'name' seja mantido.
+    The @activity.defn decorator registers this function as an Activity
+    recognized by the Temporal worker. The 'name' parameter is the
+    identifier the Workflow uses to dispatch the task — if you rename the
+    Python function, the Workflow continues working as long as the 'name' is kept.
     """
     client = PNCPClient()
 
     try:
-        # Converte as strings ISO de volta para datetime para o cliente HTTP
-        data_inicio = datetime.fromisoformat(params.data_inicio)
-        data_fim = datetime.fromisoformat(params.data_fim)
+        # Converts ISO strings back to datetime for the HTTP client
+        start_date = datetime.fromisoformat(params.start_date)
+        end_date = datetime.fromisoformat(params.end_date)
 
-        pagina = await client.get_contratacoes_atualizacao(
-            data_inicial=data_inicio,
-            data_final=data_fim,
-            modalidade=params.modalidade,
-            pagina=params.pagina,
-            tamanho_pagina=params.tamanho_pagina,
+        page_result = await client.get_updated_procurements(
+            start_date=start_date,
+            end_date=end_date,
+            modality=params.modality,
+            page=params.page,
+            page_size=params.page_size,
         )
 
         logger.info(
-            f"Página {params.pagina}/{pagina.total_paginas} | "
-            f"modalidade={params.modalidade} | "
-            f"itens={len(pagina.data)}"
+            f"Page {params.page}/{page_result.total_pages} | "
+            f"modality={params.modality} | "
+            f"items={len(page_result.data)}"
         )
 
         return PageResult(
-            # Serializamos os itens como JSON porque o Temporal precisa
-            # serializar o retorno da Activity, e ContratacaoDTO é Pydantic —
-            # usamos model_dump_json() para serialização limpa.
-            items=[item.model_dump_json(by_alias=False) for item in pagina.data],
-            total_paginas=pagina.total_paginas,
-            pagina_atual=pagina.numero_pagina,
-            empty=pagina.empty or len(pagina.data) == 0,
+            # We serialize items as JSON because Temporal needs to
+            # serialize the Activity return value, and ProcurementDTO is Pydantic —
+            # we use model_dump_json() for clean serialization.
+            items=[item.model_dump_json(by_alias=False) for item in page_result.data],
+            total_pages=page_result.total_pages,
+            current_page=page_result.page_number,
+            empty=page_result.empty or len(page_result.data) == 0,
         )
 
     finally:
-        # Sempre fechamos o cliente HTTP ao fim da Activity para evitar
-        # connection leaks — cada Activity tem seu próprio ciclo de vida.
+        # Always close the HTTP client at the end of the Activity to avoid
+        # connection leaks — each Activity has its own lifecycle.
         await client.close()

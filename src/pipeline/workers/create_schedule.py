@@ -1,16 +1,16 @@
 """
-Script para criar o Schedule do Temporal que dispara o SyncLicitacoesWorkflow
-automaticamente a cada intervalo configurado.
+Script to create the Temporal Schedule that triggers SyncProcurementsWorkflow
+automatically at each configured interval.
 
-No Temporal, um Schedule é um objeto persistente no servidor — diferente de
-um cron tradicional que vive apenas enquanto o processo está ativo. Se o
-servidor Temporal reiniciar, o Schedule continua existindo e vai disparar
-no próximo horário programado.
+In Temporal, a Schedule is a persistent object on the server — unlike a
+traditional cron that only lives while the process is active. If the
+Temporal server restarts, the Schedule continues to exist and will fire
+at the next scheduled time.
 
-Este script é idempotente: se o Schedule já existir, ele atualiza a configuração.
-Execute uma vez ao provisionar o ambiente — não precisa rodar a cada deploy.
+This script is idempotent: if the Schedule already exists, it updates the configuration.
+Run once when provisioning the environment — no need to run on every deploy.
 
-Uso:
+Usage:
     python -m src.pipeline.workers.create_schedule
 """
 
@@ -21,49 +21,49 @@ from datetime import timedelta
 from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow
 from temporalio.client import ScheduleSpec, ScheduleIntervalSpec, ScheduleState
 
-from src.pipeline.workflows.sync_workflow import SyncLicitacoesWorkflow
+from src.pipeline.workflows.sync_workflow import SyncProcurementsWorkflow
 from src.pipeline.models.state import SyncParams
 from src.pipeline.workers.sync_worker import TASK_QUEUE
 from src.core.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 
-# ID único do Schedule no servidor Temporal.
-# Use um nome descritivo — aparece no Temporal UI.
-SCHEDULE_ID = "sync-licitacoes-pncp"
+# Unique Schedule ID on the Temporal server.
+# Use a descriptive name — it appears in the Temporal UI.
+SCHEDULE_ID = "sync-procurements-pncp"
 
-# Modalidades que o agente vai monitorar.
-# 6 = Pregão Eletrônico (mais comum para TI e serviços)
-# 8 = Dispensa Eletrônica (contratos menores, frequente em SaaS)
-# Expanda conforme o domínio de negócio do seu cliente.
-MODALIDADES_MONITORADAS = [6, 8]
+# Modalities the agent will monitor.
+# 6 = Electronic Pregao (most common for IT and services)
+# 8 = Electronic Waiver (smaller contracts, frequent in SaaS)
+# Expand according to your client's business domain.
+MONITORED_MODALITIES = [6, 8]
 
 
 async def create_or_update_schedule():
     client = await Client.connect(SETTINGS.temporal_host)
 
     params = SyncParams(
-        modalidades=MODALIDADES_MONITORADAS,
-        lookback_horas=2,  # busca as últimas 2 horas a cada execução
+        modalities=MONITORED_MODALITIES,
+        lookback_hours=2,  # fetches the last 2 hours on each execution
     )
 
     schedule = Schedule(
         action=ScheduleActionStartWorkflow(
-            SyncLicitacoesWorkflow.run,
+            SyncProcurementsWorkflow.run,
             params,
-            id="sync-licitacoes-run",   # ID da instância de Workflow gerada
+            id="sync-procurements-run",   # ID of the generated Workflow instance
             task_queue=TASK_QUEUE,
         ),
         spec=ScheduleSpec(
             intervals=[
-                # Roda a cada 1 hora, com lookback de 2 horas — isso garante
-                # sobreposição de 1 hora entre execuções consecutivas,
-                # evitando gaps se uma execução demorar mais que o esperado.
+                # Runs every 1 hour, with a 2-hour lookback — this ensures
+                # 1-hour overlap between consecutive executions,
+                # preventing gaps if an execution takes longer than expected.
                 ScheduleIntervalSpec(every=timedelta(hours=1))
             ]
         ),
         state=ScheduleState(
-            note="Sincronização incremental de licitações do PNCP para Postgres + Milvus."
+            note="Incremental synchronization of PNCP procurements to Postgres + Milvus."
         ),
     )
 
@@ -71,15 +71,15 @@ async def create_or_update_schedule():
 
     try:
         await handle.describe()
-        # Se chegou aqui, o Schedule já existe — atualiza a spec
-        logger.info(f"Schedule '{SCHEDULE_ID}' já existe. Atualizando...")
+        # If we get here, the Schedule already exists — update the spec
+        logger.info(f"Schedule '{SCHEDULE_ID}' already exists. Updating...")
         await handle.update(lambda _: schedule)
-        logger.info("Schedule atualizado com sucesso.")
+        logger.info("Schedule updated successfully.")
     except Exception:
-        # Schedule não existe — cria
-        logger.info(f"Criando schedule '{SCHEDULE_ID}'...")
+        # Schedule does not exist — create it
+        logger.info(f"Creating schedule '{SCHEDULE_ID}'...")
         await client.create_schedule(SCHEDULE_ID, schedule)
-        logger.info("Schedule criado com sucesso.")
+        logger.info("Schedule created successfully.")
 
 
 if __name__ == "__main__":

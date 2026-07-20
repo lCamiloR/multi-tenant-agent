@@ -184,8 +184,8 @@ class GraphAgent:
             config=run_config,  # type: ignore[arg-type]
         )
 
-        # Garante que os dados sejam enviados ao Langfuse antes de retornar,
-        # importante especialmente em ambientes de execução curta (scripts, testes)
+        # Ensures data is flushed to Langfuse before returning,
+        # important especially in short-lived execution environments (scripts, tests)
         langfuse.flush()
 
         return response["messages"].pop().content

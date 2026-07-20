@@ -12,13 +12,13 @@ class Settings(BaseSettings):
     milvus_uri: str = "http://localhost:19530"
 
     # --- Temporal ---
-    # Endereço do servidor Temporal.
-    # Em desenvolvimento: "localhost:7233"
-    # Em produção via Docker Compose: "temporal:7233"
+    # Temporal server address.
+    # In development: "localhost:7233"
+    # In production via Docker Compose: "temporal:7233"
     temporal_host: str = "localhost:7233"
 
     # --- Postgres ---
-    # URL de conexão SQLAlchemy. Exemplos:
+    # SQLAlchemy connection URL. Examples:
     #   postgresql+asyncpg://user:password@localhost:5432/multi_tenant_agent
     database_url: str = "postgresql+asyncpg://postgres:secret@localhost:5432/multi_tenant_agent"
 
@@ -26,4 +26,4 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"
 
-SETTINGS = Settings()  # Falha no startup se JWT_SECRET_KEY não existir
+SETTINGS = Settings()  # Fails at startup if JWT_SECRET_KEY does not exist

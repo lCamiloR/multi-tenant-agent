@@ -1,17 +1,17 @@
 """
-Repositório de acesso a dados para licitações e órgãos contratantes.
+Data access repository for procurements and procuring entities.
 
-O padrão Repository centraliza toda a lógica de acesso ao banco neste módulo,
-mantendo as Activities do Temporal e as rotas do FastAPI livres de queries SQL.
-Isso tem dois benefícios práticos:
+The Repository pattern centralizes all database access logic in this module,
+keeping Temporal Activities and FastAPI routes free of raw SQL queries.
+This provides two practical benefits:
 
-1. Testabilidade — você pode mockar o repositório nos testes sem precisar
-   de um banco real rodando.
-2. Manutenção — se a query de upsert precisar mudar, o único lugar a alterar
-   é aqui, não espalhado pelas Activities.
+1. Testability — you can mock the repository in tests without needing
+   a real database running.
+2. Maintainability — if the upsert query needs to change, the only place
+   to update is here, not scattered across Activities.
 
-Todas as operações são assíncronas porque tanto o FastAPI quanto o Temporal
-rodam em event loop assíncrono — chamadas síncronas bloqueariam o loop inteiro.
+All operations are async because both FastAPI and Temporal
+run in an async event loop — synchronous calls would block the entire loop.
 """
 
 from sqlalchemy import select
@@ -22,13 +22,13 @@ from src.db.models.procuring_entity import ProcuringEntity
 
 
 class ProcuringEntityRepository:
-    """Operações de persistência para órgãos contratantes."""
+    """Persistence operations for procuring entities."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def upsert(self, entity: ProcuringEntity) -> ProcuringEntity:
-        """Insere ou atualiza um órgão contratante pelo CNPJ."""
+        """Inserts or updates a procuring entity by CNPJ."""
         stmt = (
             insert(ProcuringEntity)
             .values(
@@ -58,7 +58,7 @@ class ProcuringEntityRepository:
         return result.scalar_one()
 
     async def get_by_cnpj(self, cnpj: str) -> ProcuringEntity | None:
-        """Busca um órgão pelo CNPJ."""
+        """Fetches a procuring entity by CNPJ."""
         stmt = select(ProcuringEntity).where(ProcuringEntity.cnpj == cnpj)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

@@ -23,11 +23,11 @@ class PlanningRenderer:
         self.current_step = index
 
     def _get_step_text(self, step: Any) -> str:
-        # suporta tanto string quanto PlanItem
+        # supports both plain string and PlanItem
         if isinstance(step, str):
             return step
-        
-        # fallback para seu modelo
+
+        # fallback to model attribute
         return getattr(step, "quick_description", str(step))
 
     def render(self):

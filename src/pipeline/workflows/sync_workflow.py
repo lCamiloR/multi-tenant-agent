@@ -4,10 +4,10 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from src.pipeline.activities.fetch_activity import fetch_contratacoes_page
+    from src.pipeline.activities.fetch_activity import fetch_procurements_page
     from src.pipeline.activities.upsert_activity import (
         generate_embeddings_batch,
-        upsert_licitacoes_batch,
+        upsert_procurements_batch,
     )
     from src.pipeline.models.state import (
         FetchParams,
@@ -35,8 +35,8 @@ PERSIST_RETRY_POLICY = RetryPolicy(
 PAGES_PER_EXECUTION = 5
 
 
-@workflow.defn(name="SyncLicitacoesWorkflow")
-class SyncLicitacoesWorkflow:
+@workflow.defn(name="SyncProcurementsWorkflow")
+class SyncProcurementsWorkflow:
 
     @workflow.run
     async def run(self, params: SyncParams | SyncProgress) -> dict:
@@ -51,26 +51,26 @@ class SyncLicitacoesWorkflow:
         progress = self._init_progress(params)
 
         workflow.logger.info(
-            f"Execution started | modalities_remaining={progress.modalidades_restantes} "
-            f"resume_page={progress.pagina_atual} "
-            f"period={progress.data_inicio} → {progress.data_fim}"
+            f"Execution started | remaining_modalities={progress.remaining_modalities} "
+            f"resume_page={progress.current_page} "
+            f"period={progress.start_date} → {progress.end_date}"
         )
 
         pages_this_execution = 0
 
-        while progress.modalidades_restantes:
-            modalidade = progress.modalidades_restantes[0]
-            total_paginas = None
-            pagina = progress.pagina_atual
+        while progress.remaining_modalities:
+            modality = progress.remaining_modalities[0]
+            total_pages = None
+            page = progress.current_page
 
             while True:
                 fetch_result = await workflow.execute_activity(
-                    fetch_contratacoes_page,
+                    fetch_procurements_page,
                     FetchParams(
-                        data_inicio=progress.data_inicio,
-                        data_fim=progress.data_fim,
-                        modalidade=modalidade,
-                        pagina=pagina,
+                        start_date=progress.start_date,
+                        end_date=progress.end_date,
+                        modality=modality,
+                        page=page,
                     ),
                     start_to_close_timeout=timedelta(seconds=120),
                     retry_policy=IO_RETRY_POLICY,
@@ -78,14 +78,14 @@ class SyncLicitacoesWorkflow:
 
                 if fetch_result.empty:
                     workflow.logger.info(
-                        f"Modality {modalidade} | no data on page {pagina} — done."
+                        f"Modality {modality} | no data on page {page} — done."
                     )
                     break
 
-                if total_paginas is None:
-                    total_paginas = fetch_result.total_paginas
+                if total_pages is None:
+                    total_pages = fetch_result.total_pages
                     workflow.logger.info(
-                        f"Modality {modalidade} | total pages: {total_paginas}"
+                        f"Modality {modality} | total pages: {total_pages}"
                     )
 
                 try:
@@ -97,7 +97,7 @@ class SyncLicitacoesWorkflow:
                     )
 
                     processed = await workflow.execute_activity(
-                        upsert_licitacoes_batch,
+                        upsert_procurements_batch,
                         BatchUpsertParams(
                             items_json=fetch_result.items,
                             embeddings=embeddings,
@@ -106,57 +106,57 @@ class SyncLicitacoesWorkflow:
                         retry_policy=PERSIST_RETRY_POLICY,
                     )
 
-                    progress.total_processados += processed
+                    progress.total_processed += processed
                     pages_this_execution += 1
 
                 except Exception as e:
                     workflow.logger.error(
-                        f"Error on modality {modalidade} page {pagina}: {e}"
+                        f"Error on modality {modality} page {page}: {e}"
                     )
-                    progress.total_erros += 1
+                    progress.total_errors += 1
 
                 # ── continue_as_new checkpoint ──────────────────────────────
                 # After PAGES_PER_EXECUTION pages, hand off to a fresh execution
                 # carrying the current progress forward. The new execution will
                 # resume from the next page of the current modality.
                 if pages_this_execution >= PAGES_PER_EXECUTION:
-                    next_page = pagina + 1
+                    next_page = page + 1
                     resume = SyncProgress(
-                        modalidades_restantes=progress.modalidades_restantes,
-                        pagina_atual=next_page,
-                        data_inicio=progress.data_inicio,
-                        data_fim=progress.data_fim,
-                        total_processados=progress.total_processados,
-                        total_erros=progress.total_erros,
-                        lookback_horas=progress.lookback_horas,
+                        remaining_modalities=progress.remaining_modalities,
+                        current_page=next_page,
+                        start_date=progress.start_date,
+                        end_date=progress.end_date,
+                        total_processed=progress.total_processed,
+                        total_errors=progress.total_errors,
+                        lookback_hours=progress.lookback_hours,
                     )
                     workflow.logger.info(
                         f"History checkpoint reached | continuing as new "
-                        f"from modality={modalidade} page={next_page}"
+                        f"from modality={modality} page={next_page}"
                     )
                     workflow.continue_as_new(resume)
 
                 await asyncio.sleep(0.5)
 
-                if pagina >= (total_paginas or 1):
+                if page >= (total_pages or 1):
                     break
 
-                pagina += 1
+                page += 1
 
             # Current modality is done — advance to the next one,
             # resetting the page counter for the fresh modality.
-            progress.modalidades_restantes = progress.modalidades_restantes[1:]
-            progress.pagina_atual = 1
+            progress.remaining_modalities = progress.remaining_modalities[1:]
+            progress.current_page = 1
 
-        resultado = {
-            "total_processados": progress.total_processados,
-            "total_erros": progress.total_erros,
-            "periodo_inicio": progress.data_inicio,
-            "periodo_fim": progress.data_fim,
+        result = {
+            "total_processed": progress.total_processed,
+            "total_errors": progress.total_errors,
+            "period_start": progress.start_date,
+            "period_end": progress.end_date,
         }
 
-        workflow.logger.info(f"Sync complete | {resultado}")
-        return resultado
+        workflow.logger.info(f"Sync complete | {result}")
+        return result
 
     def _init_progress(self, params: SyncParams | SyncProgress) -> SyncProgress:
         """
@@ -171,11 +171,11 @@ class SyncLicitacoesWorkflow:
         if isinstance(params, SyncProgress):
             return params
 
-        agora = workflow.now()
+        now = workflow.now()
         return SyncProgress(
-            modalidades_restantes=params.modalidades,
-            pagina_atual=1,
-            data_inicio=(agora - timedelta(hours=params.lookback_horas)).isoformat(),
-            data_fim=agora.isoformat(),
-            lookback_horas=params.lookback_horas,
+            remaining_modalities=params.modalities,
+            current_page=1,
+            start_date=(now - timedelta(hours=params.lookback_hours)).isoformat(),
+            end_date=now.isoformat(),
+            lookback_hours=params.lookback_hours,
         )

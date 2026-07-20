@@ -1,11 +1,9 @@
-# src/pipeline/activities/upsert_activity.py
-
 import logging
 from temporalio import activity
 
-from src.pipeline.clients.milvus_client import MilvusLicitacoesClient
+from src.pipeline.clients.milvus_client import MilvusProcurementClient
 from src.pipeline.clients.embedding_client import EmbeddingClient
-from src.pipeline.models.pncp import ContratacaoDTO
+from src.pipeline.models.pncp import ProcurementDTO
 from src.pipeline.models.state import BatchUpsertParams, BatchEmbeddingParams
 from src.pipeline.mappers.pncp_mapper import to_procurement, to_procuring_entity
 from src.db.repositories.procuring_entity_repo import ProcuringEntityRepository
@@ -30,15 +28,15 @@ async def generate_embeddings_batch(params: BatchEmbeddingParams) -> list[list[f
     """
     embedder = EmbeddingClient(api_key=SETTINGS.openai_api_key)
 
-    items = [ContratacaoDTO.model_validate_json(j) for j in params.items_json]
-    texts = [item.texto_para_embedding for item in items]
+    items = [ProcurementDTO.model_validate_json(j) for j in params.items_json]
+    texts = [item.embedding_text for item in items]
 
     logger.info(f"Generating embeddings | batch_size={len(texts)}")
     return await embedder.embed_batch(texts)
 
 
-@activity.defn(name="upsert_licitacoes_batch")
-async def upsert_licitacoes_batch(params: BatchUpsertParams) -> int:
+@activity.defn(name="upsert_procurements_batch")
+async def upsert_procurements_batch(params: BatchUpsertParams) -> int:
     """
     Persists a full page of procurements into Postgres and Milvus.
 
@@ -47,20 +45,20 @@ async def upsert_licitacoes_batch(params: BatchUpsertParams) -> int:
 
     Both stores are idempotent:
       - Postgres: INSERT ... ON CONFLICT DO UPDATE (keyed on pncp_control_number)
-      - Milvus: upsert by primary id (numeroControlePNCP)
+      - Milvus: upsert by primary id (pncp_control_number)
 
     This means retrying this activity on failure is always safe.
 
     Returns the count of successfully persisted items.
     """
-    items = [ContratacaoDTO.model_validate_json(j) for j in params.items_json]
+    items = [ProcurementDTO.model_validate_json(j) for j in params.items_json]
 
     async with get_session_ctx() as session:
         procuring_entity_repo = ProcuringEntityRepository(session)
         procurement_repo = ProcurementRepository(session)
 
         for item in items:
-            logger.info(f"[Postgres] Upsert | id={item.numero_controle_pncp}")
+            logger.info(f"[Postgres] Upsert | id={item.pncp_control_number}")
             entity = to_procuring_entity(item)
             saved_entity = await procuring_entity_repo.upsert(entity)
             procurement = to_procurement(item, saved_entity.id)
@@ -68,7 +66,7 @@ async def upsert_licitacoes_batch(params: BatchUpsertParams) -> int:
 
         await session.commit()
 
-    milvus = MilvusLicitacoesClient(uri=SETTINGS.milvus_uri)
+    milvus = MilvusProcurementClient(uri=SETTINGS.milvus_uri)
     try:
         milvus.upsert_batch(
             items_json=params.items_json,

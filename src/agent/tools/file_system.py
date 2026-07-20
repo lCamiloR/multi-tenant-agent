@@ -3,80 +3,80 @@ from pathlib import Path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-# Diretório base de trabalho — todas as operações ficam restritas a este caminho
+# Base working directory — all operations are restricted to this path
 WORKDIR = Path(__file__).parents[5] / "sandbox"
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_path(relative_path: str) -> Path:
-    """Resolve o caminho relativo dentro do WORKDIR e garante que não escapa dele."""
+    """Resolves the relative path inside WORKDIR and ensures it does not escape it."""
     resolved = (WORKDIR / relative_path).resolve()
     if not str(resolved).startswith(str(WORKDIR.resolve())):
-        raise ValueError(f"Acesso negado: o caminho '{relative_path}' está fora do diretório de trabalho permitido.")
+        raise ValueError(f"Access denied: path '{relative_path}' is outside the allowed working directory.")
     return resolved
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
 class ReadDirectoryInput(BaseModel):
-    path: str = Field(default=".", description="Caminho relativo ao diretório para listar. Use '.' para a raiz.")
-    recursive: bool = Field(default=False, description="Se verdadeiro, lista recursivamente todos os subdiretórios.")
+    path: str = Field(default=".", description="Relative path to the directory to list. Use '.' for the root.")
+    recursive: bool = Field(default=False, description="If true, recursively lists all subdirectories.")
 
 class ReadFileInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao diretório do arquivo a ser lido.")
+    path: str = Field(description="Relative path to the file to be read.")
 
 class WriteFileInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao diretório do arquivo a ser criado ou sobrescrito.")
-    content: str = Field(description="Conteúdo a ser escrito no arquivo.")
+    path: str = Field(description="Relative path to the file to be created or overwritten.")
+    content: str = Field(description="Content to write to the file.")
 
 class UpdateFileInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao diretório do arquivo a ser atualizado.")
-    content: str = Field(description="Conteúdo a ser acrescentado ao final do arquivo.")
+    path: str = Field(description="Relative path to the file to be updated.")
+    content: str = Field(description="Content to be appended to the end of the file.")
 
 class MoveFileInput(BaseModel):
-    source: str = Field(description="Caminho relativo ao diretório do arquivo de origem.")
-    destination: str = Field(description="Caminho relativo ao diretório do arquivo de destino.")
+    source: str = Field(description="Relative path to the source file.")
+    destination: str = Field(description="Relative path to the destination file.")
 
 class DeleteFileInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao diretório do arquivo a ser apagado.")
+    path: str = Field(description="Relative path to the file to be deleted.")
 
 class CreateFolderInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao diretório a ser criado.")
+    path: str = Field(description="Relative path to the directory to be created.")
 
 class DeleteFolderInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao diretório a ser apagado.")
+    path: str = Field(description="Relative path to the directory to be deleted.")
 
 class MoveFolderInput(BaseModel):
-    source: str = Field(description="Caminho relativo ao diretório de origem.")
-    destination: str = Field(description="Caminho relativo ao diretório de destino.")
+    source: str = Field(description="Relative path to the source directory.")
+    destination: str = Field(description="Relative path to the destination directory.")
 
 class SearchFilesByNameInput(BaseModel):
-    directory: str = Field(default=".", description="Caminho relativo ao diretório onde buscar.")
-    pattern: str = Field(description="Padrão de busca para o nome do arquivo (suporta wildcards como *.txt ou *config*).")
-    recursive: bool = Field(default=True, description="Se verdadeiro, busca recursivamente em subdiretórios.")
+    directory: str = Field(default=".", description="Relative path to the directory to search in.")
+    pattern: str = Field(description="Search pattern for the filename (supports wildcards like *.txt or *config*).")
+    recursive: bool = Field(default=True, description="If true, searches recursively in subdirectories.")
 
 class SearchKeywordInFileInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao arquivo onde buscar.")
-    keyword: str = Field(description="Palavra-chave a ser buscada no arquivo.")
-    case_sensitive: bool = Field(default=False, description="Se verdadeiro, busca diferencia maiúsculas de minúsculas.")
+    path: str = Field(description="Relative path to the file to search in.")
+    keyword: str = Field(description="Keyword to search for in the file.")
+    case_sensitive: bool = Field(default=False, description="If true, search is case-sensitive.")
 
 class ReadFileRangeInput(BaseModel):
-    path: str = Field(description="Caminho relativo ao arquivo a ser lido.")
-    start_line: int = Field(description="Número da linha inicial (começando em 1).")
-    end_line: int = Field(description="Número da linha final (inclusivo).")
+    path: str = Field(description="Relative path to the file to be read.")
+    start_line: int = Field(description="Starting line number (beginning at 1).")
+    end_line: int = Field(description="Ending line number (inclusive).")
 
 
-# ── Ferramentas ────────────────────────────────────────────────────────────────
+# ── Tools ────────────────────────────────────────────────────────────────────
 
 @tool(args_schema=ReadDirectoryInput)
 def read_directory(path: str = ".", recursive: bool = False) -> str:
-    """Lista os arquivos e pastas de um diretório dentro do diretório."""
+    """Lists files and folders in a directory inside the working directory."""
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o diretório '{path}' não existe."
+            return f"Error: directory '{path}' does not exist."
         if not target.is_dir():
-            return f"Erro: '{path}' não é um diretório."
+            return f"Error: '{path}' is not a directory."
 
         if recursive:
             entries = [str(p.relative_to(WORKDIR)) for p in sorted(target.rglob("*"))]
@@ -84,277 +84,277 @@ def read_directory(path: str = ".", recursive: bool = False) -> str:
             entries = [str(p.relative_to(WORKDIR)) for p in sorted(target.iterdir())]
 
         if not entries:
-            return f"Diretório '{path}' está vazio."
-        return "Conteúdo listado com sucesso:\n" + "\n".join(entries)
+            return f"Directory '{path}' is empty."
+        return "Contents listed successfully:\n" + "\n".join(entries)
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao listar diretório: {e}"
+        return f"Error listing directory: {e}"
 
 
 @tool(args_schema=ReadFileInput)
 def read_file(path: str) -> str:
-    """Lê e retorna o conteúdo de um arquivo dentro do diretório."""
+    """Reads and returns the contents of a file inside the working directory."""
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o arquivo '{path}' não existe."
+            return f"Error: file '{path}' does not exist."
         if not target.is_file():
-            return f"Erro: '{path}' não é um arquivo."
+            return f"Error: '{path}' is not a file."
         content = target.read_text(encoding="utf-8")
-        return f"Conteúdo do arquivo '{path}':\n{content}"
+        return f"Contents of file '{path}':\n{content}"
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao ler arquivo: {e}"
+        return f"Error reading file: {e}"
 
 
 @tool(args_schema=WriteFileInput)
 def write_file(path: str, content: str) -> str:
-    """Criar um arquivo com o conteúdo fornecido dentro do diretório."""
+    """Creates a file with the provided content inside the working directory."""
     try:
         target = _safe_path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
-        return f"Arquivo '{path}' criado com sucesso."
+        return f"File '{path}' created successfully."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao escrever arquivo: {e}"
+        return f"Error writing file: {e}"
 
 
 @tool(args_schema=UpdateFileInput)
 def update_file(path: str, content: str) -> str:
-    """Modifica o conteúdo de um arquivo existente dentro do diretório."""
+    """Appends content to an existing file inside the working directory."""
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o arquivo '{path}' não existe. Use write_file para criar."
+            return f"Error: file '{path}' does not exist. Use write_file to create it."
         with target.open("a", encoding="utf-8") as f:
             f.write(content)
-        return f"Conteúdo modificado com sucesso no arquivo '{path}'."
+        return f"Content appended successfully to file '{path}'."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao modificar conteúdo: {e}"
+        return f"Error appending content: {e}"
 
 
 @tool(args_schema=MoveFileInput)
 def move_file(source: str, destination: str) -> str:
-    """Move um arquivo de um caminho para outro dentro do diretório."""
+    """Moves a file from one path to another inside the working directory."""
     try:
         src = _safe_path(source)
         dst = _safe_path(destination)
         if not src.exists():
-            return f"Erro: o arquivo de origem '{source}' não existe."
+            return f"Error: source file '{source}' does not exist."
         if not src.is_file():
-            return f"Erro: '{source}' não é um arquivo."
+            return f"Error: '{source}' is not a file."
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
-        return f"Arquivo movido com sucesso: '{source}' → '{destination}'."
+        return f"File moved successfully: '{source}' → '{destination}'."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao mover arquivo: {e}"
+        return f"Error moving file: {e}"
 
 
 @tool(args_schema=DeleteFileInput)
 def delete_file(path: str) -> str:
-    """Apaga um arquivo dentro do diretório."""
+    """Deletes a file inside the working directory."""
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o arquivo '{path}' não existe."
+            return f"Error: file '{path}' does not exist."
         if not target.is_file():
-            return f"Erro: '{path}' não é um arquivo."
+            return f"Error: '{path}' is not a file."
         target.unlink()
-        return f"Arquivo '{path}' apagado com sucesso."
+        return f"File '{path}' deleted successfully."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao apagar arquivo: {e}"
+        return f"Error deleting file: {e}"
 
 
 @tool(args_schema=CreateFolderInput)
 def create_folder(path: str) -> str:
-    """Cria um novo diretório dentro do diretório."""
+    """Creates a new directory inside the working directory."""
     try:
         target = _safe_path(path)
         if target.exists():
-            return f"Aviso: o diretório '{path}' já existe."
+            return f"Warning: directory '{path}' already exists."
         target.mkdir(parents=True, exist_ok=True)
-        return f"Diretório '{path}' criado com sucesso."
+        return f"Directory '{path}' created successfully."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao criar diretório: {e}"
+        return f"Error creating directory: {e}"
 
 
 @tool(args_schema=DeleteFolderInput)
 def delete_folder(path: str) -> str:
-    """Apaga um diretório e todo seu conteúdo dentro do diretório."""
+    """Deletes a directory and all its contents inside the working directory."""
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o diretório '{path}' não existe."
+            return f"Error: directory '{path}' does not exist."
         if not target.is_dir():
-            return f"Erro: '{path}' não é um diretório."
+            return f"Error: '{path}' is not a directory."
         shutil.rmtree(target)
-        return f"Diretório '{path}' e todo seu conteúdo foram apagados com sucesso."
+        return f"Directory '{path}' and all its contents deleted successfully."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao apagar diretório: {e}"
+        return f"Error deleting directory: {e}"
 
 
 @tool(args_schema=MoveFolderInput)
 def move_folder(source: str, destination: str) -> str:
-    """Move um diretório de um caminho para outro dentro do diretório."""
+    """Moves a directory from one path to another inside the working directory."""
     try:
         src = _safe_path(source)
         dst = _safe_path(destination)
         if not src.exists():
-            return f"Erro: o diretório de origem '{source}' não existe."
+            return f"Error: source directory '{source}' does not exist."
         if not src.is_dir():
-            return f"Erro: '{source}' não é um diretório."
+            return f"Error: '{source}' is not a directory."
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
-        return f"Diretório movido com sucesso: '{source}' → '{destination}'."
+        return f"Directory moved successfully: '{source}' → '{destination}'."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao mover diretório: {e}"
+        return f"Error moving directory: {e}"
 
 
 @tool(args_schema=SearchFilesByNameInput)
 def search_files_by_name(directory: str = ".", pattern: str = "*", recursive: bool = True) -> str:
     """
-    Busca arquivos por nome similar em um diretório usando padrões (wildcards).
-    
-    Exemplos de padrões:
-    - '*.py' → todos os arquivos .py
-    - '*config*' → arquivos com 'config' no nome
-    - 'test_*.txt' → arquivos que começam com 'test_' e terminam com .txt
+    Searches for files by name in a directory using patterns (wildcards).
+
+    Pattern examples:
+    - '*.py' → all .py files
+    - '*config*' → files with 'config' in the name
+    - 'test_*.txt' → files starting with 'test_' and ending with .txt
     """
     try:
         target = _safe_path(directory)
         if not target.exists():
-            return f"Erro: o diretório '{directory}' não existe."
+            return f"Error: directory '{directory}' does not exist."
         if not target.is_dir():
-            return f"Erro: '{directory}' não é um diretório."
+            return f"Error: '{directory}' is not a directory."
 
-        # Busca arquivos usando glob pattern
+        # Search files using glob pattern
         if recursive:
             matches = list(target.rglob(pattern))
         else:
             matches = list(target.glob(pattern))
-        
-        # Filtra apenas arquivos (não diretórios)
+
+        # Filter only files (not directories)
         file_matches = [p for p in matches if p.is_file()]
-        
+
         if not file_matches:
-            return f"Nenhum arquivo encontrado com o padrão '{pattern}' em '{directory}'."
-        
-        # Formata resultado com caminhos relativos
+            return f"No files found with pattern '{pattern}' in '{directory}'."
+
+        # Format result with relative paths
         result_lines = [str(p.relative_to(WORKDIR)) for p in sorted(file_matches)]
-        
-        return f"Encontrados {len(file_matches)} arquivo(s) correspondente(s):\n" + "\n".join(result_lines)
+
+        return f"Found {len(file_matches)} matching file(s):\n" + "\n".join(result_lines)
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao buscar arquivos: {e}"
+        return f"Error searching files: {e}"
 
 
 @tool(args_schema=SearchKeywordInFileInput)
 def search_keyword_in_file(path: str, keyword: str, case_sensitive: bool = False) -> str:
     """
-    Busca uma palavra-chave dentro de um arquivo e retorna as linhas encontradas com seus números.
-    
-    Retorna cada ocorrência com o número da linha e o conteúdo completo da linha.
+    Searches for a keyword inside a file and returns the matching lines with their numbers.
+
+    Returns each occurrence with the line number and the full line content.
     """
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o arquivo '{path}' não existe."
+            return f"Error: file '{path}' does not exist."
         if not target.is_file():
-            return f"Erro: '{path}' não é um arquivo."
-        
+            return f"Error: '{path}' is not a file."
+
         content = target.read_text(encoding="utf-8")
         lines = content.splitlines()
-        
-        # Realiza a busca
+
+        # Perform the search
         keyword_to_search = keyword if case_sensitive else keyword.lower()
         matches = []
-        
+
         for line_num, line in enumerate(lines, start=1):
             line_to_search = line if case_sensitive else line.lower()
             if keyword_to_search in line_to_search:
-                matches.append(f"Linha {line_num}: {line}")
-        
+                matches.append(f"Line {line_num}: {line}")
+
         if not matches:
-            return f"Nenhuma ocorrência da palavra-chave '{keyword}' encontrada no arquivo '{path}'."
-        
-        return f"Encontradas {len(matches)} ocorrência(s) de '{keyword}' no arquivo '{path}':\n\n" + "\n".join(matches)
+            return f"No occurrences of keyword '{keyword}' found in file '{path}'."
+
+        return f"Found {len(matches)} occurrence(s) of '{keyword}' in file '{path}':\n\n" + "\n".join(matches)
     except UnicodeDecodeError:
-        return f"Erro: o arquivo '{path}' não pode ser lido como texto."
+        return f"Error: file '{path}' cannot be read as text."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao buscar palavra-chave: {e}"
+        return f"Error searching keyword: {e}"
 
 
 @tool(args_schema=ReadFileRangeInput)
 def read_file_range(path: str, start_line: int, end_line: int) -> str:
     """
-    Lê e retorna apenas um range específico de linhas de um arquivo.
-    
-    Útil para visualizar trechos específicos de arquivos grandes sem carregar tudo.
-    As linhas são numeradas começando em 1.
+    Reads and returns only a specific range of lines from a file.
+
+    Useful for viewing specific sections of large files without loading everything.
+    Lines are numbered starting at 1.
     """
     try:
         target = _safe_path(path)
         if not target.exists():
-            return f"Erro: o arquivo '{path}' não existe."
+            return f"Error: file '{path}' does not exist."
         if not target.is_file():
-            return f"Erro: '{path}' não é um arquivo."
-        
-        # Validação dos números de linha
+            return f"Error: '{path}' is not a file."
+
+        # Validate line numbers
         if start_line < 1:
-            return "Erro: start_line deve ser >= 1."
+            return "Error: start_line must be >= 1."
         if end_line < start_line:
-            return "Erro: end_line deve ser >= start_line."
-        
+            return "Error: end_line must be >= start_line."
+
         content = target.read_text(encoding="utf-8")
         lines = content.splitlines()
-        
-        # Verifica se o range está dentro do arquivo
+
+        # Check if the range is within the file
         total_lines = len(lines)
         if start_line > total_lines:
-            return f"Erro: o arquivo '{path}' tem apenas {total_lines} linha(s), mas foi solicitado a partir da linha {start_line}."
-        
-        # Ajusta end_line se for maior que o total
+            return f"Error: file '{path}' has only {total_lines} line(s), but start_line={start_line} was requested."
+
+        # Adjust end_line if greater than total
         actual_end = min(end_line, total_lines)
-        
-        # Extrai o range (convertendo para índice 0-based)
+
+        # Extract the range (converting to 0-based index)
         selected_lines = lines[start_line - 1:actual_end]
-        
-        # Formata com números de linha
+
+        # Format with line numbers
         formatted_lines = [
-            f"{line_num}: {line}" 
+            f"{line_num}: {line}"
             for line_num, line in enumerate(selected_lines, start=start_line)
         ]
-        
+
         return (
-            f"Linhas {start_line}-{actual_end} do arquivo '{path}' "
-            f"(total: {total_lines} linhas):\n\n" + 
+            f"Lines {start_line}-{actual_end} of file '{path}' "
+            f"(total: {total_lines} lines):\n\n" +
             "\n".join(formatted_lines)
         )
     except UnicodeDecodeError:
-        return f"Erro: o arquivo '{path}' não pode ser lido como texto."
+        return f"Error: file '{path}' cannot be read as text."
     except ValueError as e:
-        return f"Erro de segurança: {e}"
+        return f"Security error: {e}"
     except Exception as e:
-        return f"Erro ao ler range do arquivo: {e}"
+        return f"Error reading file range: {e}"
 
 
 def get_custom_filesystem_tools():

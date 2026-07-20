@@ -1,14 +1,14 @@
 """
-Configuração do ambiente de execução do Alembic.
+Alembic execution environment configuration.
 
-Este arquivo é o ponto de entrada do Alembic — ele é executado
-automaticamente pelos comandos `alembic revision` e `alembic upgrade`.
+This file is the Alembic entry point — it is executed automatically
+by the `alembic revision` and `alembic upgrade` commands.
 
-Duas configurações críticas aqui:
-1. target_metadata: aponta para o Base.metadata que contém todos os
-   models SQLAlchemy — sem isso o --autogenerate não detecta as tabelas.
-2. engine async: usamos AsyncEngine porque o driver é asyncpg —
-   o Alembic tem suporte nativo a isso via run_async_migrations().
+Two critical settings here:
+1. target_metadata: points to Base.metadata which contains all
+   SQLAlchemy models — without this, --autogenerate does not detect tables.
+2. async engine: we use AsyncEngine because the driver is asyncpg —
+   Alembic has native support for this via run_async_migrations().
 """
 
 import asyncio
@@ -20,40 +20,40 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# Importamos o Base e todos os models para que o metadata
-# esteja populado quando o --autogenerate inspecionar o schema.
-# IMPORTANTE: todos os models precisam ser importados aqui,
-# caso contrário o autogenerate não os detecta.
+# We import Base and all models so that the metadata
+# is populated when --autogenerate inspects the schema.
+# IMPORTANT: all models must be imported here,
+# otherwise autogenerate will not detect them.
 from src.db.base import Base
 from src.db.models.procurement import Procurement          # noqa: F401
 from src.db.models.procuring_entity import ProcuringEntity  # noqa: F401
 
-# Importamos as settings para obter a DATABASE_URL do .env
+# We import settings to get the DATABASE_URL from .env
 from src.core.config import SETTINGS
 
-# Lê o alembic.ini para configuração de logging
+# Reads alembic.ini for logging configuration
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Aponta para o metadata que contém todas as tabelas declaradas nos models.
-# É isso que permite o --autogenerate comparar o estado atual do banco
-# com o estado esperado pelos models e gerar as migrations automaticamente.
+# Points to the metadata that contains all tables declared in the models.
+# This is what allows --autogenerate to compare the current database state
+# with the expected state from the models and generate migrations automatically.
 target_metadata = Base.metadata
 
-# Sobrescreve a sqlalchemy.url do alembic.ini com a variável de ambiente.
-# Isso evita duplicar a URL de conexão em dois lugares.
+# Overrides the sqlalchemy.url from alembic.ini with the environment variable.
+# This avoids duplicating the connection URL in two places.
 config.set_main_option("sqlalchemy.url", SETTINGS.database_url)
 
 
 def run_migrations_offline() -> None:
     """
-    Modo offline: gera o SQL das migrations sem conectar ao banco.
+    Offline mode: generates migration SQL without connecting to the database.
 
-    Útil para revisar o SQL antes de aplicar, ou para ambientes
-    onde a conexão direta ao banco não está disponível.
-    Execute com: alembic upgrade head --sql
+    Useful for reviewing the SQL before applying, or for environments
+    where direct database connection is not available.
+    Run with: alembic upgrade head --sql
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -76,12 +76,12 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """
-    Modo online com engine assíncrona.
+    Online mode with async engine.
 
-    Usamos async_engine_from_config em vez de engine_from_config
-    porque o driver asyncpg não suporta uso síncrono — tentativas
-    de usar create_engine() com asyncpg resultam no erro
-    'Can't load plugin: sqlalchemy.dialects:driver' que você viu.
+    We use async_engine_from_config instead of engine_from_config
+    because the asyncpg driver does not support synchronous use — attempts
+    to use create_engine() with asyncpg result in the error
+    'Can't load plugin: sqlalchemy.dialects:driver'.
     """
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),

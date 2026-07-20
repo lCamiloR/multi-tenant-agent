@@ -105,18 +105,18 @@ class GraphAgent(AgentBase):
         def research_revisor_node(state: ExecutionState) -> ExecutionState:
             result = chain.invoke(state)
 
-            # PROXIMO PASSO ou PLANO COMPLETO
+            # NEXT STEP or PLAN COMPLETE
             next_counter = state["step_counter"] + 1
 
             if next_counter >= len(state["research_plan"].steps):
                 return {
-                    "messages": [ ("ai", "Pesquisa de Contexto Concluída!")],
+                    "messages": [ ("ai", "Context Research Completed!")],
                     "step_counter": -1,
                     "phase": Phases.CONTEXT_CONSOLIDATION
                 }
             elif result.isComplete:
                 return {
-                    "messages": [("ai", f"Passo concluído, seguindo para o próximo passo...")],
+                    "messages": [("ai", f"Step completed, moving to the next step...")],
                     "step_counter": next_counter,
                     "phase": Phases.CONTEXT_GATHERING
                 }
@@ -125,18 +125,18 @@ class GraphAgent(AgentBase):
         def step_revisor_node(state: ExecutionState) -> ExecutionState:
             result = chain.invoke(state)
 
-            # PROXIMO PASSO ou PLANO COMPLETO
+            # NEXT STEP or PLAN COMPLETE
             next_counter = state["step_counter"] + 1
 
             if next_counter >= len(state["research_plan"].steps):
                 return {
-                    "messages": [ ("ai", "Passos do Plano Concluídos!")],
+                    "messages": [ ("ai", "Plan Steps Completed!")],
                     "step_counter": -1,
                     "phase": Phases.WRAPPING_UP
                 }
             elif result.isComplete:
                 return {
-                    "messages": [("ai", f"Passo concluído, seguindo para o próximo passo...")],
+                    "messages": [("ai", f"Step completed, moving to the next step...")],
                     "step_counter": next_counter,
                     "phase": Phases.EXECUTING
                 }
@@ -213,8 +213,8 @@ class GraphAgent(AgentBase):
         #     config=run_config,  # type: ignore[arg-type]
         # )
 
-        # # Garante que os dados sejam enviados ao Langfuse antes de retornar,
-        # # importante especialmente em ambientes de execução curta (scripts, testes)
+        # # Ensures data is flushed to Langfuse before returning,
+        # # important especially in short-lived execution environments (scripts, tests)
         # langfuse.flush()
 
         # return response["messages"].pop().content

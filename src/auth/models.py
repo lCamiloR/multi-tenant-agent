@@ -17,11 +17,11 @@ class TokenResponse(BaseModel):
     expires_at: datetime
 
 
-# --- Internal (payload dentro do JWT) ---
+# --- Internal (payload inside the JWT) ---
 
 class TokenPayload(BaseModel):
-    sub: str                    # subject — identificador do usuário
-    tenant_id: str              # essencial para multi-tenant
-    role: str = "user"          # ex: "admin", "user", "readonly"
-    exp: datetime               # expiry, preenchido pelo jwt_handler
-    iat: datetime               # issued at, preenchido pelo jwt_handler
+    sub: str                    # subject — user identifier
+    tenant_id: str              # essential for multi-tenant
+    role: str = "user"          # e.g.: "admin", "user", "readonly"
+    exp: datetime               # expiry, set by jwt_handler
+    iat: datetime               # issued at, set by jwt_handler

@@ -17,15 +17,15 @@ def _get_token_payload(token: str = Depends(oauth2_scheme)) -> TokenPayload:
         )
 
 
-# --- Dependencies públicas (use estas nos routes) ---
+# --- Public dependencies (use these in routes) ---
 
 def get_current_user(payload: TokenPayload = Depends(_get_token_payload)) -> TokenPayload:
-    """Qualquer usuário autenticado."""
+    """Any authenticated user."""
     return payload
 
 
 def require_admin(payload: TokenPayload = Depends(_get_token_payload)) -> TokenPayload:
-    """Apenas usuários com role=admin."""
+    """Only users with role=admin."""
     if payload.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -35,5 +35,5 @@ def require_admin(payload: TokenPayload = Depends(_get_token_payload)) -> TokenP
 
 
 def get_tenant_id(payload: TokenPayload = Depends(_get_token_payload)) -> str:
-    """Extrai o tenant_id diretamente — útil para filtrar dados no banco."""
+    """Extracts tenant_id directly — useful for filtering data in the database."""
     return payload.tenant_id

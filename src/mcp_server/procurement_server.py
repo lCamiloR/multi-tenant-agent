@@ -21,7 +21,7 @@ from mcp.types import Tool, TextContent
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from src.pipeline.clients.milvus_client import MilvusLicitacoesClient
+from src.pipeline.clients.milvus_client import MilvusProcurementClient
 from src.pipeline.clients.embedding_client import EmbeddingClient
 from src.db.repositories.procurement_repo import ProcurementRepository
 from src.db.session import get_session_ctx
@@ -60,11 +60,11 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Brazilian state acronym (e.g. 'SP', 'RJ'). Optional.",
                     },
-                    "modalidade_id": {
+                    "modality_id": {
                         "type": "integer",
-                        "description": "Modality code: 6=Pregão Eletrônico, 8=Dispensa Eletrônica. Optional.",
+                        "description": "Modality code: 6=Electronic Pregao, 8=Electronic Waiver. Optional.",
                     },
-                    "apenas_abertas": {
+                    "open_only": {
                         "type": "boolean",
                         "description": "If true, only returns procurements with open proposal period.",
                         "default": False,
@@ -152,15 +152,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
 async def _handle_search(args: dict) -> str:
     embedder = EmbeddingClient(api_key=SETTINGS.openai_api_key)
-    milvus = MilvusLicitacoesClient(uri=SETTINGS.milvus_uri)
+    milvus = MilvusProcurementClient(uri=SETTINGS.milvus_uri)
 
     try:
         query_vector = await embedder.embed(args["query"])
         results = milvus.search(
             query_vector=query_vector,
             uf=args.get("uf"),
-            modalidade_id=args.get("modalidade_id"),
-            apenas_abertas=args.get("apenas_abertas", False),
+            modality_id=args.get("modality_id"),
+            open_only=args.get("open_only", False),
             limit=args.get("limit", 5),
         )
 
@@ -172,8 +172,8 @@ async def _handle_search(args: dict) -> str:
             lines.append(
                 f"{i}. Control Number: {r['id']}\n"
                 f"   Similarity Score: {r['score']:.4f}\n"
-                f"   State: {r.get('uf_sigla') or 'N/A'}\n"
-                f"   Modality ID: {r.get('modalidade_id') or 'N/A'}\n"
+                f"   State: {r.get('state_acronym') or 'N/A'}\n"
+                f"   Modality ID: {r.get('modality_id') or 'N/A'}\n"
             )
         return "\n".join(lines)
     finally:

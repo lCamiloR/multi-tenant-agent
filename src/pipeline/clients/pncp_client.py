@@ -1,33 +1,33 @@
 """
-Cliente HTTP para a API pública do PNCP.
+HTTP client for the PNCP public API.
 
-A responsabilidade deste módulo é exclusivamente a comunicação com a API externa —
-ele não sabe nada sobre Temporal, Milvus ou Postgres. Essa separação é intencional:
-se a API mudar ou precisarmos trocar de fonte de dados, apenas este arquivo muda.
+The responsibility of this module is exclusively communication with the external API —
+it knows nothing about Temporal, Milvus, or Postgres. This separation is intentional:
+if the API changes or we need to switch data sources, only this file changes.
 
-Usamos httpx em vez de requests porque é async-native, o que é importante
-dentro do contexto do Temporal que roda em event loop assíncrono.
+We use httpx instead of requests because it is async-native, which is important
+within the Temporal context that runs in an async event loop.
 """
 
 import httpx
 from datetime import datetime, timedelta
 from logging import getLogger
-from src.pipeline.models.pncp import PaginaContratacoes
+from src.pipeline.models.pncp import ProcurementsPage
 
 logger = getLogger(__name__)
 
-# Base URL da API de consulta do PNCP
+# Base URL for the PNCP query API
 PNCP_BASE_URL = "https://pncp.gov.br/api/consulta"
 
 
 class PNCPClient:
     """
-    Encapsula todas as chamadas à API do PNCP.
+    Encapsulates all calls to the PNCP API.
 
-    Usamos um client httpx com timeout configurado para evitar que
-    uma API lenta bloqueie o worker do Temporal indefinidamente.
-    O Temporal tem seu próprio mecanismo de timeout por Activity,
-    mas é boa prática ter um timeout também na camada HTTP.
+    We use an httpx client with a configured timeout to prevent
+    a slow API from blocking the Temporal worker indefinitely.
+    Temporal has its own Activity-level timeout mechanism,
+    but it is good practice to also have a timeout at the HTTP layer.
     """
 
     def __init__(self, base_url: str = PNCP_BASE_URL, timeout: float = 30.0):
@@ -35,54 +35,54 @@ class PNCPClient:
         self.client = httpx.AsyncClient(
             base_url=base_url,
             timeout=timeout,
-            # A API do PNCP é pública — sem autenticação necessária para consulta
+            # The PNCP API is public — no authentication required for queries
         )
 
-    async def get_contratacoes_atualizacao(
+    async def get_updated_procurements(
         self,
-        data_inicial: datetime,
-        data_final: datetime,
-        modalidade: int,
-        pagina: int = 1,
-        tamanho_pagina: int = 50,
-    ) -> PaginaContratacoes:
+        start_date: datetime,
+        end_date: datetime,
+        modality: int,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> ProcurementsPage:
         """
-        Busca contratações atualizadas em um intervalo de tempo.
+        Fetches procurements updated within a time interval.
 
-        Este é o endpoint correto para sincronização incremental — ele retorna
-        apenas registros que foram modificados no período, o que é muito mais
-        eficiente do que buscar tudo e comparar localmente.
+        This is the correct endpoint for incremental synchronization — it returns
+        only records modified during the period, which is much more efficient
+        than fetching everything and comparing locally.
 
-        O formato de data exigido pela API é "YYYYMMDD" — por isso
-        fazemos a conversão aqui, mantendo o resto do código trabalhando com datetime.
+        The date format required by the API is "YYYYMMDD" — that is why
+        we convert here, keeping the rest of the code working with datetime.
         """
         fmt = "%Y%m%d"
 
         params = {
-            "dataInicial": data_inicial.strftime(fmt),
-            "dataFinal": data_final.strftime(fmt),
-            "codigoModalidadeContratacao": modalidade,
-            "pagina": pagina,
-            "tamanhoPagina": tamanho_pagina,
+            "dataInicial": start_date.strftime(fmt),
+            "dataFinal": end_date.strftime(fmt),
+            "codigoModalidadeContratacao": modality,
+            "pagina": page,
+            "tamanhoPagina": page_size,
         }
 
         logger.info(
-            f"Buscando contratações | modalidade={modalidade} "
-            f"período={data_inicial.strftime(fmt)} até {data_final.strftime(fmt)} "
-            f"página={pagina}"
+            f"Fetching procurements | modality={modality} "
+            f"period={start_date.strftime(fmt)} to {end_date.strftime(fmt)} "
+            f"page={page}"
         )
 
         response = await self.client.get("/v1/contratacoes/atualizacao", params=params)
 
-        # Deixamos o httpx lançar exceção para status >= 400.
-        # O Temporal vai capturar e aplicar a RetryPolicy configurada no workflow.
+        # We let httpx raise an exception for status >= 400.
+        # Temporal will catch it and apply the RetryPolicy configured in the workflow.
         response.raise_for_status()
 
-        # Status 204 significa que não há dados no período — retornamos página vazia
+        # Status 204 means no data in the period — return an empty page
         if response.status_code == 204:
-            return PaginaContratacoes(data=[], totalRegistros=0, totalPaginas=0, numeroPagina=pagina)
+            return ProcurementsPage(data=[], totalRegistros=0, totalPaginas=0, numeroPagina=page)
 
-        return PaginaContratacoes.model_validate(response.json())
+        return ProcurementsPage.model_validate(response.json())
 
     async def close(self):
         await self.client.aclose()

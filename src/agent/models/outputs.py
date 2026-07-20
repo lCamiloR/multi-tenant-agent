@@ -5,131 +5,132 @@ from typing import List
 
 # thoughts: str = Field(
 #         ...,
-#         description="Pensamentos e Observações gerados durante a execução"
+#         description="Thoughts and observations generated during execution"
 #     )
 
 """
-A Task representa a tarefa refinada, que é uma descrição clara e objetiva do que precisa ser feito,
-junto com a intenção do usuário resumida em uma frase. Essa estrutura é fundamental para orientar
-a execução do plano de pesquisa e a coleta de contexto, garantindo que todas as ações estejam alinhadas
-com o objetivo final do usuário.
+Task represents the refined task — a clear, objective description of what needs to be done,
+along with the user's intent summarized in a single sentence. This structure is essential
+for guiding research plan execution and context gathering, ensuring all actions remain
+aligned with the user's ultimate goal.
 """
 class Task(BaseModel):
     description: str = Field(
         ...,
-        description="Descrição clara e objetiva da tarefa refinada"
+        description="Clear and objective description of the refined task"
     )
     intent: str = Field(
         ...,
-        description="Intenção do usuário resumida em uma frase"
+        description="User's intent summarized in a single sentence"
     )
 
 
 class PlanItem(BaseModel):
     quick_description: str = Field(
         ...,
-        description="Descrição curta e direta da ação a ser executada"
+        description="Short, direct description of the action to be executed"
     )
     detailed_description: str = Field(
         ...,
-        description="Descrição detalhada da ação, incluindo como executar e o que se espera obter"
+        description="Detailed description of the action, including how to execute it and what outcome to expect"
     )
     tools_suggestions: List[str] = Field(
         default_factory=list,
-        description="Lista de ferramentas sugeridas para executar a ação"
+        description="List of suggested tools to execute the action"
     )
 
 """
-O ResearchPlan é uma estrutura que organiza as etapas de execução para a coleta de contexto.
-Cada PlanItem representa uma ação específica a ser realizada, com uma descrição rápida para referência 
-e uma descrição detalhada para orientação.
+ResearchPlan is a structure that organizes the execution steps for context gathering.
+Each PlanItem represents a specific action to be performed, with a quick description
+for reference and a detailed description for guidance.
 """
 class ResearchPlan(BaseModel):
     steps: List[PlanItem] = Field(
         default_factory=list,
-        description="Etapas ordenadas de execução para coleta de contexto"
-    )   
+        description="Ordered execution steps for context gathering"
+    )
 
 """
-O ContextItem representa uma peça de informação coletada durante a execução do plano de pesquisa. 
-Ele inclui um título curto para resumir a informação, o conteúdo relevante coletado 
-e a fonte de onde essa informação foi obtida. O Context é uma coleção desses itens, 
-organizados em uma lista, que serve como base para a execução da tarefa refinada.
-""" 
+ContextItem represents a piece of information collected during research plan execution.
+It includes a short title to summarize the information, the relevant content collected,
+and the source it was obtained from. Context is a collection of these items, organized
+in a list, serving as the basis for executing the refined task.
+"""
 class ContextItem(BaseModel):
     title: str = Field(
         ...,
-        description="Título curto que resume a informação coletada"
+        description="Short title summarizing the collected information"
     )
     content: str = Field(
         ...,
-        description="Conteúdo relevante coletado"
+        description="Relevant content collected"
     )
     source: str = Field(
         ...,
-        description="Origem da informação (ex: ferramenta ou fonte)"
+        description="Origin of the information (e.g. tool or source)"
     )
 
 
 class Context(BaseModel):
     items: List[ContextItem] = Field(
         default_factory=list,
-        description="Lista de contextos coletados"
+        description="List of collected context items"
     )
 
 """
-ExecutionPlan é a estrutura que organiza as etapas de execução para a realização da tarefa refinada,
-com base no contexto coletado. Cada PlanItem representa uma ação específica a ser realizada,
-com uma descrição rápida para referência e uma descrição detalhada para orientação, além de sugestões de ferramentas
-que podem ser utilizadas para executar a ação. O ExecutionPlan é essencial para garantir que a execução da tarefa
-esteja alinhada com o objetivo do usuário e que todas as ações sejam realizadas de forma eficiente e eficaz.
+ExecutionPlan is the structure that organizes the execution steps for carrying out the
+refined task, based on the collected context. Each PlanItem represents a specific action
+to be performed, with a quick description for reference and a detailed description for
+guidance, plus tool suggestions. ExecutionPlan is essential to ensure the task execution
+is aligned with the user's goal and that all actions are performed efficiently.
 """
 
 class ExecutionPlan(BaseModel):
     steps: List[PlanItem] = Field(
         default_factory=list,
-        description="Etapas ordenadas para execução"
+        description="Ordered steps for execution"
     )
 
 
 class UsedTool(BaseModel):
     name: str = Field(
         ...,
-        description="Nome da ferramenta utilizada"
+        description="Name of the tool used"
     )
     description: str = Field(
         ...,
-        description="Descrição do que a ferramenta fez"
+        description="Description of what the tool did"
     )
 
 """
-Será usado para a consolidação dos resultados da execução, onde serão listadas as ferramentas utilizadas,
-os problemas ou limitações encontrados durante a execução, uma mensagem final consolidada que será entregue ao usuário
-e um texto sugerindo próximos passos para o usuário. Essa estrutura é fundamental para fornecer um feedback claro e útil ao usuário,
-ajudando-o a entender o que foi feito, quais foram os resultados e quais são as próximas ações recomendadas.
+Used for consolidating execution results — listing the tools used, problems or
+limitations encountered during execution, a final consolidated message to be delivered
+to the user, and a text suggesting next steps. This structure is essential for providing
+clear and useful feedback, helping the user understand what was done, the results, and
+what next actions are recommended.
 """
 
 class RunResults(BaseModel):
     used_tools: List[UsedTool] = Field(
         default_factory=list,
-        description="Lista de ferramentas utilizadas durante a execução"
+        description="List of tools used during execution"
     )
     detected_problems: List[str] = Field(
         default_factory=list,
-        description="Problemas ou limitações encontrados durante a execução"
+        description="Problems or limitations encountered during execution"
     )
     results_consolidation: str = Field(
         ...,
-        description="Mensagem final consolidada que será entregue ao usuário"
+        description="Final consolidated message to be delivered to the user"
     )
     next_steps: str = Field(
         ...,
-        description="Texto sugerindo próximos passos para o usuário"
+        description="Text suggesting next steps for the user"
     )
 
 
 class IsStepComplete(BaseModel):
-    """Indica se um passo foi executado corretamente"""
-    isComplete: bool = Field(description="Indica se o passo foi finalizado.")
-    error: bool = Field(description="Indica se houve erro na execução do passo.")
-    motif: str = Field(description="Motivo do erro, se houver.")
+    """Indicates whether a step was executed correctly"""
+    isComplete: bool = Field(description="Indicates whether the step was completed.")
+    error: bool = Field(description="Indicates whether an error occurred during step execution.")
+    motif: str = Field(description="Reason for the error, if any.")

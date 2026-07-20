@@ -1,17 +1,17 @@
 """
-Worker do Temporal para o pipeline de sincronização de licitações.
+Temporal worker for the procurement synchronization pipeline.
 
-O Worker é o processo Python que fica conectado ao servidor Temporal,
-aguardando tarefas para executar. Quando o servidor Temporal tem um
-Workflow ou Activity para rodar, ele despacha para um Worker disponível
-na fila correta (task_queue).
+The Worker is the Python process that stays connected to the Temporal server,
+waiting for tasks to execute. When the Temporal server has a Workflow or
+Activity to run, it dispatches it to an available Worker in the correct queue
+(task_queue).
 
-Analogia útil: pense no servidor Temporal como um gerente de tarefas,
-e nos Workers como funcionários. O gerente sabe o que precisa ser feito,
-mas são os funcionários que têm as ferramentas para executar.
+Useful analogy: think of the Temporal server as a task manager,
+and Workers as employees. The manager knows what needs to be done,
+but employees have the tools to execute it.
 
-Para escalar horizontalmente, basta rodar mais instâncias deste worker —
-o Temporal distribui automaticamente a carga entre eles.
+To scale horizontally, simply run more instances of this worker —
+Temporal automatically distributes the load among them.
 """
 
 import asyncio
@@ -19,45 +19,45 @@ import logging
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from src.pipeline.workflows.sync_workflow import SyncLicitacoesWorkflow
-from src.pipeline.activities.fetch_activity import fetch_contratacoes_page
-from src.pipeline.activities.upsert_activity import generate_embeddings_batch, upsert_licitacoes_batch
+from src.pipeline.workflows.sync_workflow import SyncProcurementsWorkflow
+from src.pipeline.activities.fetch_activity import fetch_procurements_page
+from src.pipeline.activities.upsert_activity import generate_embeddings_batch, upsert_procurements_batch
 from src.core.config import SETTINGS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Nome da fila de tarefas — Workflows e Workers precisam usar o mesmo nome.
-# Em produção, você pode ter filas separadas por prioridade ou tipo de job.
-TASK_QUEUE = "licitacoes-sync-queue"
+# Task queue name — Workflows and Workers must use the same name.
+# In production, you can have separate queues by priority or job type.
+TASK_QUEUE = "procurements-sync-queue"
 
 
 async def run_worker():
     """
-    Inicializa a conexão com o servidor Temporal e sobe o Worker.
+    Initializes the connection to the Temporal server and starts the Worker.
 
-    O Worker é registrado com a lista de Workflows e Activities que
-    ele é capaz de executar. Se o servidor tentar despachar uma tarefa
-    que não está registrada aqui, o Worker vai recusar — isso é intencional,
-    garante que cada Worker só executa o que foi explicitamente declarado.
+    The Worker is registered with the list of Workflows and Activities it
+    is capable of executing. If the server tries to dispatch a task
+    not registered here, the Worker will refuse — this is intentional,
+    ensuring each Worker only executes what was explicitly declared.
     """
-    logger.info(f"Conectando ao Temporal em {SETTINGS.temporal_host}...")
+    logger.info(f"Connecting to Temporal at {SETTINGS.temporal_host}...")
 
     client = await Client.connect(SETTINGS.temporal_host)
 
     async with Worker(
         client,
         task_queue=TASK_QUEUE,
-        workflows=[SyncLicitacoesWorkflow],
+        workflows=[SyncProcurementsWorkflow],
         activities=[
-            fetch_contratacoes_page,
+            fetch_procurements_page,
             generate_embeddings_batch,
-            upsert_licitacoes_batch,
+            upsert_procurements_batch,
         ],
     ):
-        logger.info(f"Worker ativo na fila '{TASK_QUEUE}'. Aguardando tarefas...")
-        # O Worker roda até o processo ser encerrado (Ctrl+C ou sinal do SO).
-        # Em produção, isso seria gerenciado pelo Docker ou por um process manager.
+        logger.info(f"Worker active on queue '{TASK_QUEUE}'. Waiting for tasks...")
+        # The Worker runs until the process is terminated (Ctrl+C or OS signal).
+        # In production, this would be managed by Docker or a process manager.
         await asyncio.Future()
 
 

@@ -1,13 +1,13 @@
 """
-Modelos de estado interno do pipeline Temporal.
+Internal state models for the Temporal pipeline.
 
-No Temporal, tudo que é passado entre Workflows e Activities precisa ser
-serializável. O Temporal usa JSON por padrão, então Pydantic é a escolha
-natural — serializa/deserializa automaticamente e valida os dados.
+In Temporal, everything passed between Workflows and Activities must be
+serializable. Temporal uses JSON by default, so Pydantic is the natural choice —
+it serializes/deserializes automatically and validates data.
 
-Separamos esses modelos dos DTOs da API (pncp.py) intencionalmente:
-os DTOs representam o contrato com a fonte externa, enquanto estes
-modelos representam o estado interno da nossa orquestração.
+We intentionally separate these models from the API DTOs (pncp.py):
+the DTOs represent the contract with the external source, while these
+models represent the internal state of our orchestration.
 """
 
 from dataclasses import dataclass
@@ -16,56 +16,56 @@ from dataclasses import dataclass
 @dataclass
 class FetchParams:
     """
-    Parâmetros passados para a Activity que busca uma página da API.
+    Parameters passed to the Activity that fetches a page from the API.
 
-    Usamos dataclass em vez de Pydantic aqui porque o Temporal
-    tem suporte nativo a dataclasses para serialização — é mais leve
-    para objetos que são só contêineres de dados sem lógica de validação.
+    We use dataclass instead of Pydantic here because Temporal
+    has native dataclass support for serialization — it is lighter
+    for objects that are only data containers without validation logic.
     """
-    data_inicio: str
-    data_fim: str
-    modalidade: int
-    pagina: int = 1
-    tamanho_pagina: int = 50
+    start_date: str
+    end_date: str
+    modality: int
+    page: int = 1
+    page_size: int = 50
 
 
 @dataclass
 class PageResult:
     """
-    Resultado de uma Activity de fetch — encapsula o que veio de uma página.
-    O workflow usa total_paginas para decidir se deve continuar paginando.
+    Result of a fetch Activity — encapsulates what came from a single page.
+    The workflow uses total_pages to decide whether to continue paginating.
     """
     items: list
-    total_paginas: int
-    pagina_atual: int
+    total_pages: int
+    current_page: int
     empty: bool
 
 
 @dataclass
 class SyncParams:
     """
-    Parâmetros de entrada do Workflow principal.
-    O Schedule do Temporal injeta isso a cada execução.
+    Input parameters for the main Workflow.
+    The Temporal Schedule injects this on each execution.
 
-    modalidades é a lista de códigos que o workflow vai iterar —
-    um por vez, para não sobrecarregar a API. Valores comuns:
-      1 = Leilão Eletrônico
-      2 = Diálogo Competitivo
-      3 = Concurso
-      4 = Concorrência Eletrônica
-      5 = Concorrência Presencial
-      6 = Pregão Eletrônico  ← mais comum para TI
-      7 = Pregão Presencial
-      8 = Dispensa Eletrônica
+    modalities is the list of codes the workflow will iterate —
+    one at a time, to avoid overloading the API. Common values:
+      1 = Electronic Auction
+      2 = Competitive Dialogue
+      3 = Contest
+      4 = Electronic Open Bidding
+      5 = In-person Open Bidding
+      6 = Electronic Pregao  ← most common for IT
+      7 = In-person Pregao
+      8 = Electronic Waiver
     """
-    modalidades: list[int]
-    lookback_horas: int = 2
+    modalities: list[int]
+    lookback_hours: int = 2
 
 
 @dataclass
 class BatchUpsertParams:
     """
-    Parameters for upsert_licitacoes_batch.
+    Parameters for upsert_procurements_batch.
     Embeddings are generated upstream (by generate_embeddings_batch activity)
     and passed here — this activity is responsible only for persistence.
     """
@@ -93,17 +93,17 @@ class SyncProgress:
     execution resumes exactly where the previous one left off.
 
     Fields:
-        modalidades_restantes: modalities not yet fully processed.
-        pagina_atual: the page to resume from within the current modality.
-        data_inicio / data_fim: fixed at Workflow start so that all
+        remaining_modalities: modalities not yet fully processed.
+        current_page: the page to resume from within the current modality.
+        start_date / end_date: fixed at Workflow start so that all
             continued executions query the same time window.
-        total_processados / total_erros: accumulated counters carried forward.
-        lookback_horas: preserved for logging/observability.
+        total_processed / total_errors: accumulated counters carried forward.
+        lookback_hours: preserved for logging/observability.
     """
-    modalidades_restantes: list[int]
-    pagina_atual: int
-    data_inicio: str
-    data_fim: str
-    total_processados: int = 0
-    total_erros: int = 0
-    lookback_horas: int = 2
+    remaining_modalities: list[int]
+    current_page: int
+    start_date: str
+    end_date: str
+    total_processed: int = 0
+    total_errors: int = 0
+    lookback_hours: int = 2
